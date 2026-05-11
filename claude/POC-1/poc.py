@@ -86,9 +86,21 @@ def _save_response(
         body_repr = f"<truncated {len(body_bytes)} bytes>"
     else:
         try:
-            body_repr = response.text
+            text = response.text
         except UnicodeDecodeError:
             body_repr = f"<binary {len(body_bytes)} bytes>"
+        else:
+            # When the response is JSON, decode it so the outer evidence
+            # file pretty-prints the nested structure instead of storing
+            # one giant escaped string.
+            content_type = response.headers.get("content-type", "").lower()
+            if "json" in content_type:
+                try:
+                    body_repr = json.loads(text)
+                except json.JSONDecodeError:
+                    body_repr = text
+            else:
+                body_repr = text
 
     payload = {
         "captured_at": _utc_now_iso(),
