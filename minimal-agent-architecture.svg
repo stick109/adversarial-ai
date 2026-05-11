@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="820" viewBox="0 0 1280 820" role="img" aria-labelledby="title desc">
+  <title id="title">Minimal Multi-Agent Adversarial Evaluation Architecture</title>
+  <desc id="desc">A four agent architecture for adversarial testing: Orchestrator, Red Team, Judge, and Documentation. Non-agent components include the target app, regression harness, observability store, vulnerability reports, and a human review gate.</desc>
+  <defs>
+    <marker id="arrow-blue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#2563eb" />
+    </marker>
+    <marker id="arrow-green" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#15803d" />
+    </marker>
+    <marker id="arrow-red" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#b91c1c" />
+    </marker>
+    <marker id="arrow-gray" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#475569" />
+    </marker>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 700 30px Arial, sans-serif; fill: #111827; }
+      .subtitle { font: 400 16px Arial, sans-serif; fill: #4b5563; }
+      .agent { fill: #ffffff; stroke: #2563eb; stroke-width: 2.5; rx: 8; }
+      .component { fill: #ffffff; stroke: #64748b; stroke-width: 2; rx: 8; }
+      .target { fill: #fff7ed; stroke: #c2410c; stroke-width: 2.5; rx: 8; }
+      .report { fill: #f0fdf4; stroke: #15803d; stroke-width: 2.5; rx: 8; }
+      .human { fill: #fefce8; stroke: #a16207; stroke-width: 2.5; rx: 8; }
+      .label { font: 700 19px Arial, sans-serif; fill: #111827; }
+      .small { font: 400 14px Arial, sans-serif; fill: #374151; }
+      .tiny { font: 400 12px Arial, sans-serif; fill: #475569; }
+      .flow-blue { fill: none; stroke: #2563eb; stroke-width: 2.4; marker-end: url(#arrow-blue); }
+      .flow-green { fill: none; stroke: #15803d; stroke-width: 2.4; marker-end: url(#arrow-green); }
+      .flow-red { fill: none; stroke: #b91c1c; stroke-width: 2.4; marker-end: url(#arrow-red); }
+      .flow-gray { fill: none; stroke: #475569; stroke-width: 2.1; marker-end: url(#arrow-gray); }
+      .dash { stroke-dasharray: 7 6; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1280" height="820" />
+  <text class="title" x="60" y="58">Minimal compliant multi-agent design</text>
+  <text class="subtitle" x="60" y="86">Four agents. Everything else is normal software: tests, storage, dashboards, and reports.</text>
+
+  <!-- Agents -->
+  <rect class="agent" x="70" y="150" width="250" height="145" />
+  <text class="label" x="95" y="185">Orchestrator Agent</text>
+  <text class="small" x="95" y="215">Chooses what to test next</text>
+  <text class="small" x="95" y="239">Sets budget and stop rules</text>
+  <text class="small" x="95" y="263">Triggers regression runs</text>
+
+  <rect class="agent" x="405" y="150" width="250" height="145" />
+  <text class="label" x="430" y="185">Red Team Agent</text>
+  <text class="small" x="430" y="215">Creates attack attempts</text>
+  <text class="small" x="430" y="239">Mutates weak attempts</text>
+  <text class="small" x="430" y="263">Runs multi-turn probes</text>
+
+  <rect class="agent" x="740" y="150" width="250" height="145" />
+  <text class="label" x="765" y="185">Judge Agent</text>
+  <text class="small" x="765" y="215">Checks if attack worked</text>
+  <text class="small" x="765" y="239">Uses fixed criteria</text>
+  <text class="small" x="765" y="263">Marks pass, fail, partial</text>
+
+  <rect class="agent" x="910" y="500" width="250" height="145" />
+  <text class="label" x="935" y="535">Documentation Agent</text>
+  <text class="small" x="935" y="565">Writes confirmed reports</text>
+  <text class="small" x="935" y="589">Keeps steps reproducible</text>
+  <text class="small" x="935" y="613">Records fix status</text>
+
+  <!-- Non-agent components -->
+  <rect class="target" x="405" y="500" width="250" height="145" />
+  <text class="label" x="430" y="535">Clinical Co-Pilot</text>
+  <text class="small" x="430" y="565">Live target app</text>
+  <text class="small" x="430" y="589">Local and deployed</text>
+  <text class="small" x="430" y="613">OpenEMR workflow</text>
+
+  <rect class="component" x="70" y="500" width="250" height="145" />
+  <text class="label" x="95" y="535">Regression Harness</text>
+  <text class="small" x="95" y="565">Replays confirmed cases</text>
+  <text class="small" x="95" y="589">Runs after changes</text>
+  <text class="small" x="95" y="613">Stores deterministic tests</text>
+
+  <rect class="component" x="70" y="675" width="250" height="85" />
+  <text class="label" x="95" y="710">Observability Store</text>
+  <text class="small" x="95" y="738">Results, cost, coverage, traces</text>
+
+  <rect class="report" x="910" y="675" width="250" height="85" />
+  <text class="label" x="935" y="710">Vulnerability Reports</text>
+  <text class="small" x="935" y="738">Evidence, impact, fix notes</text>
+
+  <rect class="human" x="1010" y="150" width="190" height="145" />
+  <text class="label" x="1035" y="185">Human Gate</text>
+  <text class="small" x="1035" y="215">Approves fixes</text>
+  <text class="small" x="1035" y="239">Reviews high risk</text>
+  <text class="small" x="1035" y="263">Controls scope</text>
+
+  <!-- Main flow -->
+  <path class="flow-blue" d="M320 222 C350 222 375 222 405 222" />
+  <text class="tiny" x="333" y="205">campaign</text>
+
+  <path class="flow-red" d="M530 295 C530 360 530 430 530 500" />
+  <text class="tiny" x="545" y="405">probe target</text>
+
+  <path class="flow-gray" d="M655 575 C710 575 710 222 740 222" />
+  <text class="tiny" x="675" y="388">transcript and output</text>
+
+  <path class="flow-green" d="M990 575 C1030 575 1050 650 1035 675" />
+  <text class="tiny" x="1055" y="650">report</text>
+
+  <path class="flow-green" d="M1035 645 L1035 675" />
+
+  <path class="flow-blue dash" d="M990 222 C1005 222 1000 222 1010 222" />
+  <text class="tiny" x="988" y="205">escalate</text>
+
+  <!-- Regression and feedback -->
+  <path class="flow-blue" d="M195 500 C195 410 195 340 195 295" />
+  <text class="tiny" x="210" y="405">next run</text>
+
+  <path class="flow-red" d="M320 575 C350 575 375 575 405 575" />
+  <text class="tiny" x="334" y="558">replay tests</text>
+
+  <path class="flow-gray dash" d="M740 260 C620 345 420 625 320 690" />
+  <text class="tiny" x="530" y="475">verdicts</text>
+
+  <path class="flow-gray dash" d="M910 590 C720 705 455 725 320 720" />
+  <text class="tiny" x="620" y="704">report status</text>
+
+  <path class="flow-blue dash" d="M195 675 C195 520 195 365 195 295" />
+  <text class="tiny" x="210" y="665">coverage, cost, trends</text>
+
+  <path class="flow-gray dash" d="M740 238 C585 330 385 660 320 700" />
+
+  <!-- Legend -->
+  <rect class="component" x="740" y="675" width="130" height="85" />
+  <text class="label" x="765" y="710">Legend</text>
+  <line x1="765" y1="728" x2="815" y2="728" stroke="#2563eb" stroke-width="2.4" marker-end="url(#arrow-blue)" />
+  <text class="tiny" x="825" y="732">control</text>
+  <line x1="765" y1="748" x2="815" y2="748" stroke="#475569" stroke-width="2.1" stroke-dasharray="7 6" marker-end="url(#arrow-gray)" />
+  <text class="tiny" x="825" y="752">evidence</text>
+</svg>
