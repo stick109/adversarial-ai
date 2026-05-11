@@ -139,6 +139,24 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def pretty_json_bytes(value: Any) -> bytes:
+    return (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def decode_json_body(body: bytes) -> Any | None:
+    try:
+        return json.loads(body.decode("utf-8"))
+    except Exception:
+        return None
+
+
+def decode_json_text(text: str) -> Any | None:
+    try:
+        return json.loads(text)
+    except Exception:
+        return None
+
+
 class EvidenceWriter:
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -257,11 +275,27 @@ class PocRun:
     def save_response(self, prefix: str, result: HttpResult, extension: str = "html", redact: bool = False) -> None:
         content_type = result.headers.get("Content-Type", "")
         body_name = f"{prefix}.{extension}"
+        should_pretty_print_json = extension.lower() == "json" or "json" in content_type.lower()
+        pretty_printed_json = False
+
         if redact:
             body_text = decode_body(result.body, content_type)
-            self.evidence.write_text(body_name, redact_text(body_text))
+            redacted_text = redact_text(body_text)
+            parsed = decode_json_text(redacted_text) if should_pretty_print_json else None
+            if parsed is not None:
+                body_to_save = pretty_json_bytes(parsed)
+                pretty_printed_json = True
+            else:
+                body_to_save = redacted_text.encode("utf-8")
         else:
-            self.evidence.write_bytes(body_name, result.body)
+            parsed = decode_json_body(result.body) if should_pretty_print_json else None
+            if parsed is not None:
+                body_to_save = pretty_json_bytes(parsed)
+                pretty_printed_json = True
+            else:
+                body_to_save = result.body
+
+        self.evidence.write_bytes(body_name, body_to_save)
 
         self.evidence.write_json(
             f"{prefix}.metadata.json",
@@ -274,7 +308,10 @@ class PocRun:
                 "elapsed_ms": result.elapsed_ms,
                 "headers": sanitize_headers(result.headers),
                 "body_file": body_name,
-                "body_sha256": sha256_bytes(result.body),
+                "body_sha256": sha256_bytes(body_to_save),
+                "raw_body_sha256": sha256_bytes(result.body),
+                "body_was_redacted": redact,
+                "json_pretty_printed": pretty_printed_json,
                 "error": result.error,
                 "cookies": cookie_inventory(self.cookie_jar),
             },
@@ -582,10 +619,7 @@ def redact_panel(panel: dict[str, Any]) -> dict[str, Any]:
 
 
 def parse_json_body(body: bytes) -> Any | None:
-    try:
-        return json.loads(body.decode("utf-8"))
-    except Exception:
-        return None
+    return decode_json_body(body)
 
 
 def response_metrics(response: Any) -> dict[str, Any]:
