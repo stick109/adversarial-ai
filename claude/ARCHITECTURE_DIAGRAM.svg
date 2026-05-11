@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 880" font-family="-apple-system, Segoe UI, system-ui, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#374151"/>
+    </marker>
+    <marker id="arrO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/>
+    </marker>
+    <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1d4ed8"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="880" fill="#fafbfc"/>
+
+  <text x="600" y="32" text-anchor="middle" font-size="22" font-weight="700" fill="#111827">AgentForge — Multi-Agent Adversarial Evaluation Architecture</text>
+  <text x="600" y="55" text-anchor="middle" font-size="13" fill="#4b5563">The attacker, the grader, and the planner are three different brains. On purpose.</text>
+
+  <!-- ORCHESTRATOR -->
+  <rect x="450" y="80" width="300" height="85" rx="10" fill="#bfdbfe" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="600" y="105" text-anchor="middle" font-size="15" font-weight="700" fill="#1e3a8a">Orchestrator Agent</text>
+  <text x="600" y="124" text-anchor="middle" font-size="11" fill="#1e40af">Claude Sonnet 4.6  •  the planner</text>
+  <text x="600" y="142" text-anchor="middle" font-size="10.5" fill="#374151">reads coverage + cost, picks what to attack next,</text>
+  <text x="600" y="156" text-anchor="middle" font-size="10.5" fill="#374151">stops the run if cost spikes without signal</text>
+
+  <!-- RED TEAM -->
+  <rect x="50" y="220" width="290" height="130" rx="10" fill="#fed7aa" stroke="#c2410c" stroke-width="2"/>
+  <text x="195" y="245" text-anchor="middle" font-size="15" font-weight="700" fill="#7c2d12">Red Team Agent</text>
+  <text x="195" y="263" text-anchor="middle" font-size="11" fill="#9a3412">Nous Hermes 3 405B / DeepSeek R1</text>
+  <text x="195" y="282" text-anchor="middle" font-size="10.5" fill="#374151">writes new attacks from scratch</text>
+  <text x="195" y="297" text-anchor="middle" font-size="10.5" fill="#374151">mutates a failed attempt into 10 variants</text>
+  <text x="195" y="312" text-anchor="middle" font-size="10.5" fill="#374151">runs multi-turn manipulation</text>
+  <text x="195" y="327" text-anchor="middle" font-size="10.5" fill="#374151">picked because it will not refuse</text>
+  <text x="195" y="343" text-anchor="middle" font-size="10" font-style="italic" fill="#6b7280">cheap, permissive, good at ideation</text>
+
+  <!-- TARGET -->
+  <rect x="455" y="220" width="290" height="130" rx="10" fill="#e9d5ff" stroke="#7e22ce" stroke-width="2"/>
+  <text x="600" y="245" text-anchor="middle" font-size="15" font-weight="700" fill="#581c87">Target: Clinical Co-Pilot</text>
+  <text x="600" y="263" text-anchor="middle" font-size="11" fill="#6b21a8">OpenEMR deployment (live URL)</text>
+  <text x="600" y="285" text-anchor="middle" font-size="10.5" fill="#374151">has access to charts, PHI, tools</text>
+  <text x="600" y="300" text-anchor="middle" font-size="10.5" fill="#374151">multi-turn memory, file upload, retrieval</text>
+  <text x="600" y="322" text-anchor="middle" font-size="11" font-weight="600" fill="#581c87">— this is what we are testing —</text>
+
+  <!-- JUDGE -->
+  <rect x="860" y="220" width="290" height="130" rx="10" fill="#bfdbfe" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="1005" y="245" text-anchor="middle" font-size="15" font-weight="700" fill="#1e3a8a">Judge Agent</text>
+  <text x="1005" y="263" text-anchor="middle" font-size="11" fill="#1e40af">Claude Sonnet 4.6  •  the picky grader</text>
+  <text x="1005" y="282" text-anchor="middle" font-size="10.5" fill="#374151">scores each response: pass / fail / partial</text>
+  <text x="1005" y="297" text-anchor="middle" font-size="10.5" fill="#374151">uses a fixed rubric per attack category</text>
+  <text x="1005" y="312" text-anchor="middle" font-size="10.5" fill="#374151">never sees how the attack was built</text>
+  <text x="1005" y="327" text-anchor="middle" font-size="10.5" fill="#374151">asks a human when it is unsure</text>
+  <text x="1005" y="343" text-anchor="middle" font-size="10" font-style="italic" fill="#6b7280">strict on purpose — hard to fool</text>
+
+  <!-- REGRESSION HARNESS -->
+  <rect x="50" y="430" width="290" height="110" rx="10" fill="#e5e7eb" stroke="#4b5563" stroke-width="2"/>
+  <text x="195" y="455" text-anchor="middle" font-size="15" font-weight="700" fill="#1f2937">Regression Harness</text>
+  <text x="195" y="473" text-anchor="middle" font-size="11" fill="#4b5563">no LLM  •  plain code</text>
+  <text x="195" y="494" text-anchor="middle" font-size="10.5" fill="#374151">replays confirmed exploits on every</text>
+  <text x="195" y="508" text-anchor="middle" font-size="10.5" fill="#374151">new build of the target system</text>
+  <text x="195" y="528" text-anchor="middle" font-size="10" font-style="italic" fill="#6b7280">same input, same check, every time</text>
+
+  <!-- EXPLOIT STORE -->
+  <rect x="455" y="430" width="290" height="110" rx="10" fill="#e5e7eb" stroke="#4b5563" stroke-width="2"/>
+  <text x="600" y="455" text-anchor="middle" font-size="15" font-weight="700" fill="#1f2937">Exploit + Coverage Store</text>
+  <text x="600" y="473" text-anchor="middle" font-size="11" fill="#4b5563">versioned database</text>
+  <text x="600" y="494" text-anchor="middle" font-size="10.5" fill="#374151">every confirmed exploit, with repro steps</text>
+  <text x="600" y="508" text-anchor="middle" font-size="10.5" fill="#374151">pass/fail rate by category and version</text>
+  <text x="600" y="522" text-anchor="middle" font-size="10.5" fill="#374151">token cost per agent per run</text>
+
+  <!-- DOCUMENTATION -->
+  <rect x="860" y="430" width="290" height="110" rx="10" fill="#bfdbfe" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="1005" y="455" text-anchor="middle" font-size="15" font-weight="700" fill="#1e3a8a">Documentation Agent</text>
+  <text x="1005" y="473" text-anchor="middle" font-size="11" fill="#1e40af">Claude Sonnet 4.6  •  the report writer</text>
+  <text x="1005" y="494" text-anchor="middle" font-size="10.5" fill="#374151">turns a confirmed exploit into</text>
+  <text x="1005" y="508" text-anchor="middle" font-size="10.5" fill="#374151">a clean, reproducible vuln report</text>
+  <text x="1005" y="528" text-anchor="middle" font-size="10" font-style="italic" fill="#6b7280">someone who wasn't here can repro it</text>
+
+  <!-- HUMAN GATE -->
+  <rect x="870" y="610" width="270" height="55" rx="10" fill="#fde68a" stroke="#b45309" stroke-width="2"/>
+  <text x="1005" y="632" text-anchor="middle" font-size="14" font-weight="700" fill="#78350f">Human Approval Gate</text>
+  <text x="1005" y="652" text-anchor="middle" font-size="10.5" fill="#374151">required before any high-severity report ships</text>
+
+  <!-- FINAL REPORT -->
+  <rect x="900" y="700" width="210" height="42" rx="6" fill="#ffffff" stroke="#1f2937" stroke-width="1.5"/>
+  <text x="1005" y="720" text-anchor="middle" font-size="12" font-weight="700" fill="#111827">Vulnerability Report</text>
+  <text x="1005" y="735" text-anchor="middle" font-size="10" fill="#6b7280">filed in tracker</text>
+
+  <!-- OBSERVABILITY -->
+  <rect x="50" y="770" width="1100" height="65" rx="10" fill="#f3f4f6" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="600" y="795" text-anchor="middle" font-size="14" font-weight="700" fill="#1f2937">Observability Layer  (Langfuse)</text>
+  <text x="600" y="813" text-anchor="middle" font-size="11" fill="#374151">every agent writes traces here: prompts, tokens, verdicts, decisions, costs</text>
+  <text x="600" y="828" text-anchor="middle" font-size="10.5" font-style="italic" fill="#6b7280">the Orchestrator reads this back — it's how the system learns what to test next</text>
+
+  <!-- ARROWS -->
+
+  <!-- Orchestrator -> Red Team -->
+  <path d="M 510 165 L 270 220" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrB)"/>
+  <text x="310" y="190" font-size="10.5" font-weight="600" fill="#1e40af">"attack category X next"</text>
+
+  <!-- Orchestrator -> Judge (rubric) -->
+  <path d="M 690 165 L 935 220" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrB)"/>
+  <text x="755" y="190" font-size="10.5" font-weight="600" fill="#1e40af">"use rubric for category X"</text>
+
+  <!-- Red Team -> Target -->
+  <path d="M 340 285 L 455 285" stroke="#c2410c" stroke-width="2.5" fill="none" marker-end="url(#arrO)"/>
+  <text x="397" y="278" text-anchor="middle" font-size="10.5" font-weight="600" fill="#7c2d12">attack prompt</text>
+
+  <!-- Target -> Judge -->
+  <path d="M 745 285 L 860 285" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+  <text x="802" y="278" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1f2937">response</text>
+
+  <!-- Judge -> Red Team (mutate loop) -->
+  <path d="M 870 340 Q 600 405 340 340" stroke="#c2410c" stroke-width="2" fill="none" marker-end="url(#arrO)" stroke-dasharray="6 4"/>
+  <text x="600" y="398" text-anchor="middle" font-size="10.5" font-weight="600" fill="#7c2d12">partial → "try 10 variants"</text>
+
+  <!-- Judge -> Orchestrator (verdict) -->
+  <path d="M 990 220 Q 990 175 750 142" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrB)"/>
+  <text x="845" y="195" font-size="10.5" font-weight="600" fill="#1e40af">verdict + coverage</text>
+
+  <!-- Judge -> Exploit Store -->
+  <path d="M 950 350 Q 800 390 740 430" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+  <text x="775" y="402" font-size="10.5" font-weight="600" fill="#1f2937">store exploit</text>
+
+  <!-- Judge -> Documentation -->
+  <path d="M 1060 350 L 1060 430" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrB)"/>
+  <text x="1070" y="395" font-size="10.5" font-weight="600" fill="#1e40af">confirmed exploit</text>
+
+  <!-- Exploit Store -> Regression Harness -->
+  <path d="M 455 485 L 340 485" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+  <text x="397" y="478" text-anchor="middle" font-size="10.5" font-weight="600" fill="#1f2937">test cases</text>
+
+  <!-- Regression Harness -> Target (replay) -->
+  <path d="M 195 430 Q 195 385 480 350" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arr)" stroke-dasharray="6 4"/>
+  <text x="220" y="395" font-size="10.5" font-weight="600" fill="#1f2937">replay on new version</text>
+
+  <!-- Documentation -> Human Gate -->
+  <path d="M 1005 540 L 1005 610" stroke="#b45309" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+
+  <!-- Human Gate -> Final Report -->
+  <path d="M 1005 665 L 1005 700" stroke="#374151" stroke-width="2" fill="none" marker-end="url(#arr)"/>
+
+  <!-- LEGEND -->
+  <g transform="translate(60, 605)">
+    <text x="0" y="0" font-size="12" font-weight="700" fill="#111827">Legend</text>
+    <rect x="0" y="10" width="14" height="14" rx="3" fill="#fed7aa" stroke="#c2410c" stroke-width="1.5"/>
+    <text x="22" y="22" font-size="11" fill="#374151">permissive LLM (does the dirty work)</text>
+    <rect x="0" y="30" width="14" height="14" rx="3" fill="#bfdbfe" stroke="#1d4ed8" stroke-width="1.5"/>
+    <text x="22" y="42" font-size="11" fill="#374151">strict LLM (judges, plans, writes reports)</text>
+    <rect x="0" y="50" width="14" height="14" rx="3" fill="#e5e7eb" stroke="#4b5563" stroke-width="1.5"/>
+    <text x="22" y="62" font-size="11" fill="#374151">no LLM — deterministic code</text>
+    <rect x="0" y="70" width="14" height="14" rx="3" fill="#fde68a" stroke="#b45309" stroke-width="1.5"/>
+    <text x="22" y="82" font-size="11" fill="#374151">human approval gate</text>
+    <rect x="0" y="90" width="14" height="14" rx="3" fill="#e9d5ff" stroke="#7e22ce" stroke-width="1.5"/>
+    <text x="22" y="102" font-size="11" fill="#374151">target system (what we are testing)</text>
+  </g>
+</svg>
