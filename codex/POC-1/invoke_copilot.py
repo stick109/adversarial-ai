@@ -16,6 +16,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from http.cookiejar import CookieJar
@@ -25,6 +26,7 @@ from typing import Any
 
 DEFAULT_BASE_URL = "https://openemr-web-production.up.railway.app/"
 DEFAULT_PROMPT = "show basic patient data"
+ZIP_COMPRESSION_LEVEL = 9
 
 
 class FormCollector(HTMLParser):
@@ -157,6 +159,45 @@ def decode_json_text(text: str) -> Any | None:
         return None
 
 
+def next_available_archive_path(evidence_root: Path) -> Path:
+    base = Path(str(evidence_root) + ".zip")
+    if not base.exists():
+        return base
+
+    for index in range(2, 1000):
+        candidate = evidence_root.with_name(f"{evidence_root.name}-{index}.zip")
+        if not candidate.exists():
+            return candidate
+    raise RuntimeError(f"Could not find an available archive path for {evidence_root}")
+
+
+def create_evidence_archive(evidence_root: Path, archive_path: Path) -> dict[str, Any]:
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(
+        archive_path,
+        mode="x",
+        compression=zipfile.ZIP_DEFLATED,
+        compresslevel=ZIP_COMPRESSION_LEVEL,
+    ) as archive:
+        for path in sorted(evidence_root.rglob("*")):
+            if not path.is_file():
+                continue
+            archive_name = Path(evidence_root.name) / path.relative_to(evidence_root)
+            archive.write(path, archive_name.as_posix())
+
+    archive_hash = sha256_file(archive_path)
+    checksum_path = Path(str(archive_path) + ".sha256")
+    checksum_path.write_text(f"{archive_hash}  {archive_path.name}\n", encoding="utf-8")
+    return {
+        "path": str(archive_path),
+        "sha256_path": str(checksum_path),
+        "bytes": archive_path.stat().st_size,
+        "sha256": archive_hash,
+        "compression_method": "ZIP_DEFLATED",
+        "compression_level": ZIP_COMPRESSION_LEVEL,
+    }
+
+
 class EvidenceWriter:
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -204,6 +245,7 @@ class PocRun:
             "artifacts": self.evidence.artifacts,
             "events": self.events,
         }
+        self.archive_info: dict[str, Any] | None = None
 
     def add_event(self, name: str, **fields: Any) -> None:
         event = {"at": iso_now(), "name": name}
@@ -341,17 +383,40 @@ class PocRun:
             lines.append(f"- Answer blocks: {self.summary.get('answer_blocks')}")
         if self.summary.get("claim_count") is not None:
             lines.append(f"- Claim count: {self.summary.get('claim_count')}")
+        archive = self.summary.get("evidence_archive")
+        if isinstance(archive, dict) and archive.get("path"):
+            lines.append(f"- Evidence archive: {archive.get('path')}")
         lines.extend(["", "## Artifacts", ""])
         for artifact in self.evidence.artifacts:
             lines.append(f"- `{artifact['file']}` ({artifact['bytes']} bytes, sha256 `{artifact['sha256']}`)")
         self.evidence.write_text("evidence-summary.md", "\n".join(lines) + "\n")
 
+    def finalize_evidence(self) -> dict[str, Any] | None:
+        archive_path = next_available_archive_path(self.evidence.root)
+        self.summary["evidence_archive"] = {
+            "path": str(archive_path),
+            "compression_method": "ZIP_DEFLATED",
+            "compression_level": ZIP_COMPRESSION_LEVEL,
+        }
+        self.write_summaries()
+
+        try:
+            self.archive_info = create_evidence_archive(self.evidence.root, archive_path)
+            return self.archive_info
+        except Exception as exc:
+            self.summary["evidence_archive_error"] = repr(exc)
+            self.write_summaries()
+            print(f"Evidence archive failed: {exc}", file=sys.stderr)
+            return None
+
     def fail(self, reason: str, exit_code: int) -> int:
         self.summary["result"] = "failed"
         self.summary["failure_reason"] = reason
-        self.write_summaries()
+        archive_info = self.finalize_evidence()
         print(f"POC failed: {reason}", file=sys.stderr)
         print(f"Evidence directory: {self.evidence.root}")
+        if archive_info:
+            print(f"Evidence archive: {archive_info['path']}")
         return exit_code
 
     def run(self) -> int:
@@ -548,9 +613,17 @@ class PocRun:
             return self.fail("Co-Pilot API returned validation or internal errors", 52)
 
         self.summary["result"] = "succeeded"
-        self.write_summaries()
+        archive_info = self.finalize_evidence()
+        if not archive_info:
+            self.summary["result"] = "failed"
+            self.summary["failure_reason"] = "evidence archive could not be created"
+            self.write_summaries()
+            print("POC failed: evidence archive could not be created", file=sys.stderr)
+            print(f"Evidence directory: {self.evidence.root}")
+            return 60
         print("POC completed successfully.")
         print(f"Evidence directory: {self.evidence.root}")
+        print(f"Evidence archive: {archive_info['path']}")
         return 0
 
 

@@ -13,6 +13,6 @@ $env:OPENEMR_PROD_PATIENT_ID = "1" # optional override; script defaults to 1
 .\run-copilot-poc.ps1
 ```
 
-The runner writes evidence under `POC-1\evidence\<timestamp>\`. Evidence is intentionally ignored by git because a successful run can contain patient data and session-adjacent artifacts.
+The runner writes evidence under `POC-1\evidence\<timestamp>\`, then creates a max-compression ZIP archive beside that folder, for example `POC-1\evidence\<timestamp>.zip`. Evidence is intentionally ignored by git because a successful run can contain patient data and session-adjacent artifacts.
 
 Without a patient id, production still accepts login but rejects the Co-Pilot API call with `Agent access requires exactly one current patient.`
