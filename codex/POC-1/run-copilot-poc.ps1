@@ -1,51 +1,18 @@
 [CmdletBinding()]
 param(
-    [string]$BaseUrl,
-    [string]$Username,
-    [string]$Password,
-    [string]$PatientId,
+    [string]$BaseUrl = $(if (-not [string]::IsNullOrWhiteSpace($env:OPENEMR_PROD_URL)) { $env:OPENEMR_PROD_URL } else { "https://openemr-web-production.up.railway.app/" }),
+    [string]$Username = $env:OPENEMR_PROD_USERNAME,
+    [string]$Password = $env:OPENEMR_PROD_PASSWORD,
+    [string]$PatientId = $(if (-not [string]::IsNullOrWhiteSpace($env:OPENEMR_PROD_PATIENT_ID)) { $env:OPENEMR_PROD_PATIENT_ID } else { "1" }),
     [string]$Prompt = "show basic patient data",
-    [string]$EvidenceDir,
-    [string]$Python
+    [string]$EvidenceDir = "",
+    [string]$Python = $(if (-not [string]::IsNullOrWhiteSpace($env:PYTHON)) { $env:PYTHON } elseif (Test-Path -LiteralPath "C:\Users\s-109\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe") { "C:\Users\s-109\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" } else { "python" })
 )
 
 $ErrorActionPreference = "Stop"
 
-if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
-    if (-not [string]::IsNullOrWhiteSpace($env:OPENEMR_PROD_URL)) {
-        $BaseUrl = $env:OPENEMR_PROD_URL
-    } else {
-        $BaseUrl = "https://openemr-web-production.up.railway.app/"
-    }
-}
-
-if ([string]::IsNullOrWhiteSpace($Username) -and -not [string]::IsNullOrWhiteSpace($env:OPENEMR_PROD_USERNAME)) {
-    $Username = $env:OPENEMR_PROD_USERNAME
-}
-
-if (($null -eq $Password -or $Password.Length -eq 0) -and $null -ne $env:OPENEMR_PROD_PASSWORD) {
-    $Password = $env:OPENEMR_PROD_PASSWORD
-}
-
-if ([string]::IsNullOrWhiteSpace($PatientId) -and -not [string]::IsNullOrWhiteSpace($env:OPENEMR_PROD_PATIENT_ID)) {
-    $PatientId = $env:OPENEMR_PROD_PATIENT_ID
-}
-
 $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PythonScript = Join-Path $ScriptRoot "invoke_copilot.py"
-
-if ([string]::IsNullOrWhiteSpace($Python)) {
-    if (-not [string]::IsNullOrWhiteSpace($env:PYTHON)) {
-        $Python = $env:PYTHON
-    } else {
-        $BundledPython = "C:\Users\s-109\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
-        if (Test-Path -LiteralPath $BundledPython) {
-            $Python = $BundledPython
-        } else {
-            $Python = "python"
-        }
-    }
-}
 
 $PythonArgs = @(
     $PythonScript,

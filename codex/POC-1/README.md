@@ -9,7 +9,7 @@ Provide credentials through parameters or environment variables:
 ```powershell
 $env:OPENEMR_PROD_USERNAME = "..."
 $env:OPENEMR_PROD_PASSWORD = "..."
-$env:OPENEMR_PROD_PATIENT_ID = "1" # required for successful patient-scoped Co-Pilot calls
+$env:OPENEMR_PROD_PATIENT_ID = "1" # optional override; script defaults to 1
 .\run-copilot-poc.ps1
 ```
 
