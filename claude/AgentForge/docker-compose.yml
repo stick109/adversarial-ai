@@ -1,0 +1,18 @@
+services:
+  agentforge-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: agentforge-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "AgentForge!2026"
+      MSSQL_PID: "Developer"
+    # Host port 14330 -> container 1433: the host's default SQL Server
+    # (MSSQLSERVER service) often binds 1433 first, so we publish on a
+    # less-contested port.  Connection strings use Server=localhost,14330.
+    ports:
+      - "14330:1433"
+    volumes:
+      - agentforge-db:/var/opt/mssql
+
+volumes:
+  agentforge-db:
