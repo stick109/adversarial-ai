@@ -62,7 +62,8 @@ CREATE TABLE dbo.PenetrationTests (
     Bootstrap       NVARCHAR(MAX)  NOT NULL,    -- JSON; always has patient_id, plus any toggle-enabled keys
     Turns           NVARCHAR(MAX)  NOT NULL,    -- JSON array; turns carry only enabled-toggle fields
     Description     NVARCHAR(1000) NOT NULL,    -- what the test is trying to break
-    CreatedBy       NVARCHAR(64)   NOT NULL DEFAULT N'red_team_agent'
+    CreatedBy       NVARCHAR(64)   NOT NULL DEFAULT N'red_team_agent',
+    GeneratorModel  NVARCHAR(128)  NULL         -- OpenRouter model id; NULL for seeds / manual rows
 );
 
 IF OBJECT_ID(N'dbo.PenetrationTestExecutions', N'U') IS NULL
@@ -109,9 +110,10 @@ Seed rows (priority order; only `turn.user_goal` is enabled in v1):
 |  9  | `turn.delay_ms`                      | `0`                                                  | Rate-limit and session-TTL probes.                                                           |
 | 10  | `bootstrap.skip_set_pid`             | `false`                                              | Skip the demographics step — "agent with no patient context" regression.                     |
 
-**Two axes are not toggles — they are always variable.** The Red Team
-agent samples both at the top of generation, using hardcoded constants
-inside the agent (and re-checks them in its response validator):
+**Three axes are not toggles — they are always variable.** The Red Team
+agent samples all three at the top of generation, using hardcoded
+constants inside the agent (and re-checks the value-side ones in its
+response validator):
 
 - **Turn count.** Weighted distribution `{1: 4, 2: 3, 3: 2, 4: 1}` over
   `[1, 4]` (≈ 40 / 30 / 20 / 10 %, favouring single-turn tests). The
@@ -119,6 +121,13 @@ inside the agent (and re-checks them in its response validator):
 - **`bootstrap.patient_id`.** Uniform over `{1, 2, 3}`. The sampled
   value goes into the test row's `Bootstrap.patient_id` and is therefore
   always present on every row.
+- **Generator model.** Uniform over
+  `{ nousresearch/hermes-3-llama-3.1-405b, deepseek/deepseek-r1 }` —
+  the two permissive models named in
+  [ARCHITECTURE_DIAGRAM.svg](claude/ARCHITECTURE_DIAGRAM.svg). The
+  chosen model id is used for the OpenRouter call that generates this
+  test, then recorded on the row in `GeneratorModel` so later analysis
+  can compare which generator produces sharper attacks.
 
 Because `bootstrap.patient_id` is always carried, `PenetrationTests.Bootstrap`
 is `NOT NULL` — it always has at least that one key. Other `bootstrap.*`
@@ -191,7 +200,10 @@ without an additional table or column.
 
 ## 3. SQL Server in a container
 
-`docker-compose.yml` — one service, persistent volume, exposed on `1433`:
+`docker-compose.yml` — one service, persistent volume, host port `14330`
+mapped to the container's internal `1433` (the standard `1433` host
+port is owned by an existing local SQL Server install on this machine —
+see `~\.claude\environment-notes.md`):
 
 ```yaml
 services:
@@ -201,7 +213,7 @@ services:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "AgentForge!2026"
       MSSQL_PID: "Developer"
-    ports: ["1433:1433"]
+    ports: ["14330:1433"]
     volumes: [agentforge-db:/var/opt/mssql]
 volumes:
   agentforge-db:
@@ -211,7 +223,7 @@ Bootstrap = bring the container up, then run the schema file once:
 
 ```powershell
 docker compose up -d agentforge-db
-sqlcmd -S localhost,1433 -U sa -P 'AgentForge!2026' -i db\001_schema.sql
+sqlcmd -S localhost,14330 -U sa -P 'AgentForge!2026' -i db\001_schema.sql
 ```
 
 (If `sqlcmd` isn't installed, both C# apps can run the schema
@@ -256,9 +268,14 @@ return AgentForge.RedTeam.RedTeamAgent.RunOnce(
      this weighted distribution; N goes into `len(Turns)`.
    - `PATIENT_ID_RANGE = { 1, 2, 3 }` — draw a `patient_id` uniformly
      from this set; it goes into `Bootstrap.patient_id`.
+   - `REDTEAM_MODELS = { "nousresearch/hermes-3-llama-3.1-405b",
+     "deepseek/deepseek-r1" }` — draw uniformly; the chosen model id
+     is used for the OpenRouter call in step 5 and recorded as
+     `GeneratorModel` in step 6.
 
-   Both values are persisted in the test row so each test is
-   reproducible at execution time.
+   All three values are persisted in the test row so each test is
+   reproducible at execution time and attributable to a specific
+   generator model.
 3. `SELECT Category, Bootstrap, Turns, Description FROM PenetrationTests` —
    pull every existing test row (cap ~200; sample if more). Project each
    row down to only the *enabled* keys before showing it to the LLM, so
@@ -278,26 +295,21 @@ return AgentForge.RedTeam.RedTeamAgent.RunOnce(
      only enabled `turn.*` keys)."
 5. POST to **OpenRouter**'s OpenAI-compatible chat-completions endpoint
    at `https://openrouter.ai/api/v1/chat/completions` with
-   `response_format = json_object`. Auth is `Authorization: Bearer
-   <OPENROUTER_API_KEY>`. The Red Team role uses one of the permissive
-   models named in [ARCHITECTURE_DIAGRAM.svg](claude/ARCHITECTURE_DIAGRAM.svg):
-
-   - `nousresearch/hermes-3-llama-3.1-405b` (default)
-   - `deepseek/deepseek-r1`
-
-   Both are picked because they will not refuse offensive workflows;
-   a frontier-aligned commercial model would routinely decline to draft
-   jailbreak prompts. The model id is read from the `REDTEAM_MODEL` env
-   var, defaulting to hermes-3-405b.
+   `response_format = json_object` and `model` set to the id sampled
+   in step 2. Auth is `Authorization: Bearer <OPENROUTER_API_KEY>`.
+   Both models in `REDTEAM_MODELS` are picked because they will not
+   refuse offensive workflows; a frontier-aligned commercial model
+   would routinely decline to draft jailbreak prompts.
 
    Validate the response: every key in `bootstrap` and in each `turns[i]`
    must correspond to an enabled toggle; no enabled `bootstrap.*` keys
    may be missing; `len(turns)` must equal N from step 2 (and therefore
    lie in `[1, 4]`). Exit non-zero on any violation.
-6. `INSERT INTO PenetrationTests (Category, Bootstrap, Turns, Description, ...)`.
+6. `INSERT INTO PenetrationTests (Category, Bootstrap, Turns, Description, GeneratorModel, ...)`.
    `Bootstrap` is a serialized JSON object that always carries the
    sampled `patient_id` and any toggle-enabled `bootstrap.*` keys.
-   `Turns` is the LLM's validated array. Print the inserted ID.
+   `Turns` is the LLM's validated array. `GeneratorModel` is the model
+   id sampled in step 2. Print the inserted ID.
 
 The Red Team agent's prompt naturally narrows as more toggles flip on:
 v1 produces tests that differ only in `user_goal` (and turn count, which
@@ -391,7 +403,8 @@ generation and execution without changing this code.
 ## 6. Shared concerns
 
 - **Connection string** lives only in the `AGENTFORGE_DB` env var:
-  `Server=localhost,1433;Database=AgentForge;User Id=sa;Password=AgentForge!2026;TrustServerCertificate=true`
+  `Server=localhost,14330;Database=AgentForge;User Id=sa;Password=AgentForge!2026;TrustServerCertificate=true`
+  (host port 14330; see §3 and `~\.claude\environment-notes.md`).
 - **Database name** `AgentForge`. Both apps `CREATE DATABASE IF NOT EXISTS`
   on first connect (or rely on a one-time `001_schema.sql` run — pick one).
 - **Target reuse**. Both apps know nothing about Clinical Co-Pilot
@@ -411,9 +424,10 @@ generation and execution without changing this code.
 docker compose up -d agentforge-db
 sqlcmd -S localhost,1433 -U sa -P 'AgentForge!2026' -i db\001_schema.sql
 
-$env:AGENTFORGE_DB       = "Server=localhost,1433;Database=AgentForge;User Id=sa;Password=AgentForge!2026;TrustServerCertificate=true"
+$env:AGENTFORGE_DB       = "Server=localhost,14330;Database=AgentForge;User Id=sa;Password=AgentForge!2026;TrustServerCertificate=true"
 $env:OPENROUTER_API_KEY  = "sk-or-..."
-$env:REDTEAM_MODEL       = "nousresearch/hermes-3-llama-3.1-405b"  # or deepseek/deepseek-r1
+# Red Team model is not configured here -- the agent samples one per
+# invocation from a hardcoded set (see plan §2.1).
 
 # every cycle
 dotnet run --project src\AgentForge.RedTeam        # invents one test
