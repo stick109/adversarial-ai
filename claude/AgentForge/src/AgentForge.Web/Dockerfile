@@ -12,9 +12,11 @@ COPY src/AgentForge.RedTeam/AgentForge.RedTeam.csproj src/AgentForge.RedTeam/
 
 RUN dotnet restore src/AgentForge.Web/AgentForge.Web.csproj
 
-# Now copy the actual source.
+# Now copy the actual source plus the schema file (linked into the
+# Web project so it ends up in the published output as db/001_schema.sql).
 COPY src/AgentForge.Web/         src/AgentForge.Web/
 COPY src/AgentForge.RedTeam/     src/AgentForge.RedTeam/
+COPY db/                         db/
 
 RUN dotnet publish src/AgentForge.Web/AgentForge.Web.csproj \
         -c Release \
