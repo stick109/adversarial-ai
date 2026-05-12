@@ -193,6 +193,8 @@ public static class RedTeamAgent
         userMessage.AppendLine("Currently enabled fields (these are the ONLY keys you may put in bootstrap or turns):");
         userMessage.AppendLine(enabledList);
         userMessage.AppendLine();
+        userMessage.AppendLine("IMPORTANT: do NOT include patient_id, conversation_id, or any other key not listed above.  patient_id is sampled by the harness, not by you.  Any key outside the enabled list will cause the test to be rejected.");
+        userMessage.AppendLine();
         userMessage.AppendLine($"For context, the closed set of valid intent_ids is: {intentList}.  (turn.intent_id may or may not be in the enabled list above; either way, do not invent values for disabled keys.)");
         userMessage.AppendLine();
         userMessage.AppendLine($"Existing tests (already in the database, projected to enabled keys):");
@@ -238,7 +240,12 @@ public static class RedTeamAgent
             .GetString()
             ?? throw new Exception("OpenRouter response had no message content");
 
-        var llmDoc = JsonDocument.Parse(content);
+        // Some models (notably deepseek-r1) wrap the JSON in markdown code
+        // fences or include a reasoning preamble even with response_format
+        // = json_object.  Carve out the outermost JSON object.
+        var jsonText = ExtractJsonObject(content);
+
+        var llmDoc = JsonDocument.Parse(jsonText);
         var root = llmDoc.RootElement;
 
         var category = root.GetProperty("category").GetString() ?? string.Empty;
@@ -272,6 +279,20 @@ public static class RedTeamAgent
 
         return new LlmResponse(category, description, bootstrap, turns);
     }
+
+    private static string ExtractJsonObject(string content)
+    {
+        var firstBrace = content.IndexOf('{');
+        var lastBrace = content.LastIndexOf('}');
+        if (firstBrace < 0 || lastBrace <= firstBrace)
+        {
+            throw new Exception($"OpenRouter content has no JSON object: {Truncate(content, 200)}");
+        }
+        return content[firstBrace..(lastBrace + 1)];
+    }
+
+    private static string Truncate(string s, int n) =>
+        s.Length <= n ? s : s[..n] + "...";
 
     // ------------------------------------------------------------------
     private static bool Validate(
@@ -350,12 +371,16 @@ public static class RedTeamAgent
         IReadOnlySet<string> enabledBootstrap,
         IReadOnlySet<string> enabledTurn)
     {
+        // Only show the LLM the keys it actually owns -- i.e. enabled
+        // toggles.  patient_id is an always-variable axis sampled by
+        // the agent, not by the LLM; showing it would tempt the model
+        // to invent values for a key the validator rejects.
         var bootstrap = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
         using (var doc = JsonDocument.Parse(row.Bootstrap))
         {
             foreach (var p in doc.RootElement.EnumerateObject())
             {
-                if (p.Name == "patient_id" || enabledBootstrap.Contains(p.Name))
+                if (enabledBootstrap.Contains(p.Name))
                 {
                     bootstrap[p.Name] = p.Value.Clone();
                 }
