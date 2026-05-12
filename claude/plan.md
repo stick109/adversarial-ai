@@ -59,7 +59,7 @@ CREATE TABLE dbo.PenetrationTests (
     Id              INT IDENTITY(1,1) PRIMARY KEY,
     CreatedAt       DATETIME2      NOT NULL DEFAULT SYSUTCDATETIME(),
     Category        NVARCHAR(64)   NOT NULL,    -- jailbreak, phi_leak, ...
-    Bootstrap       NVARCHAR(MAX)  NULL,        -- JSON; only carries fields whose toggle is enabled
+    Bootstrap       NVARCHAR(MAX)  NOT NULL,    -- JSON; always has patient_id, plus any toggle-enabled keys
     Turns           NVARCHAR(MAX)  NOT NULL,    -- JSON array; turns carry only enabled-toggle fields
     Description     NVARCHAR(1000) NOT NULL,    -- what the test is trying to break
     CreatedBy       NVARCHAR(64)   NOT NULL DEFAULT N'red_team_agent'
@@ -101,21 +101,28 @@ Seed rows (priority order; only `turn.user_goal` is enabled in v1):
 |  1  | `turn.user_goal` ✅ enabled          | `""`                                                 | Every prompt-side attack (jailbreak, PHI extract, advice coerce).                            |
 |  2  | `turn.extra_body`                    | `null`                                               | Arbitrary extra keys in the POST body: `{patient_id:99}`, `{admin:true}`, schema fuzz.       |
 |  3  | `turn.intent_id`                     | `"free_text"`                                        | Which of the 6 intents the probe targets; multiplies verifier-path coverage.                 |
-|  4  | `bootstrap.patient_id`               | RunOnce parameter                                    | Which patient the session opens with — cross-patient leakage probes.                         |
-|  5  | `turn.source_id`                     | `null`                                               | Citation drilldown handle for secondary turns.                                               |
-|  6  | `turn.conversation_id_strategy`      | `"share"`                                            | `share` \| `fresh_each_turn` \| `literal:<id>` — conversation continuity attacks.            |
-|  7  | `turn.active_patient_context`        | `"server-session"`                                   | Body-level patient-claim override probes.                                                    |
-|  8  | `bootstrap.user`                     | `{"username":"admin","password":"pass"}`             | Login as a different role — front-desk vs. admin attack surface.                             |
-|  9  | `turn.headers`                       | `{}`                                                 | Extra/override request headers: `X-Forwarded-User`, extra `APICSRFTOKEN`.                    |
-| 10  | `turn.delay_ms`                      | `0`                                                  | Rate-limit and session-TTL probes.                                                           |
-| 11  | `bootstrap.skip_set_pid`             | `false`                                              | Skip the demographics step — "agent with no patient context" regression.                     |
+|  4  | `turn.source_id`                     | `null`                                               | Citation drilldown handle for secondary turns.                                               |
+|  5  | `turn.conversation_id_strategy`      | `"share"`                                            | `share` \| `fresh_each_turn` \| `literal:<id>` — conversation continuity attacks.            |
+|  6  | `turn.active_patient_context`        | `"server-session"`                                   | Body-level patient-claim override probes.                                                    |
+|  7  | `bootstrap.user`                     | `{"username":"admin","password":"pass"}`             | Login as a different role — front-desk vs. admin attack surface.                             |
+|  8  | `turn.headers`                       | `{}`                                                 | Extra/override request headers: `X-Forwarded-User`, extra `APICSRFTOKEN`.                    |
+|  9  | `turn.delay_ms`                      | `0`                                                  | Rate-limit and session-TTL probes.                                                           |
+| 10  | `bootstrap.skip_set_pid`             | `false`                                              | Skip the demographics step — "agent with no patient context" regression.                     |
 
-**Turn count is not a toggle — it is always variable.** The Red Team
-agent samples the number of turns per test from a fixed
-weighted-descending distribution `{1: 4, 2: 3, 3: 2, 4: 1}` (≈ 40 / 30 /
-20 / 10 %, favouring single-turn tests). The range `[1, 4]` and the
-weights are hardcoded constants in the Red Team agent (and re-checked
-by its response validator).
+**Two axes are not toggles — they are always variable.** The Red Team
+agent samples both at the top of generation, using hardcoded constants
+inside the agent (and re-checks them in its response validator):
+
+- **Turn count.** Weighted distribution `{1: 4, 2: 3, 3: 2, 4: 1}` over
+  `[1, 4]` (≈ 40 / 30 / 20 / 10 %, favouring single-turn tests). The
+  sampled N becomes `len(Turns)`.
+- **`bootstrap.patient_id`.** Uniform over `{1, 2, 3}`. The sampled
+  value goes into the test row's `Bootstrap.patient_id` and is therefore
+  always present on every row.
+
+Because `bootstrap.patient_id` is always carried, `PenetrationTests.Bootstrap`
+is `NOT NULL` — it always has at least that one key. Other `bootstrap.*`
+keys appear only when their toggle is enabled.
 
 The seed `INSERT` lives in `001_schema.sql` and is idempotent
 (`MERGE` or `INSERT ... WHERE NOT EXISTS`).
@@ -212,11 +219,15 @@ return AgentForge.RedTeam.RedTeamAgent.RunOnce(
    learn which keys are currently variable and what their defaults are.
    The set of enabled toggles drives both the LLM prompt and the
    response validator.
-2. **Sample the target turn count.** Hardcoded constants:
-   `TURN_COUNT_WEIGHTS = { 1: 4, 2: 3, 3: 2, 4: 1 }`. Draw one integer
-   N from this weighted distribution. N is always in `[1, 4]`; the
-   distribution is monotonically decreasing so single-turn tests
-   dominate the corpus, multi-turn ones are present but rarer.
+2. **Sample the always-variable parameters.** Hardcoded constants in
+   the agent:
+   - `TURN_COUNT_WEIGHTS = { 1: 4, 2: 3, 3: 2, 4: 1 }` — draw N from
+     this weighted distribution; N goes into `len(Turns)`.
+   - `PATIENT_ID_RANGE = { 1, 2, 3 }` — draw a `patient_id` uniformly
+     from this set; it goes into `Bootstrap.patient_id`.
+
+   Both values are persisted in the test row so each test is
+   reproducible at execution time.
 3. `SELECT Category, Bootstrap, Turns, Description FROM PenetrationTests` —
    pull every existing test row (cap ~200; sample if more). Project each
    row down to only the *enabled* keys before showing it to the LLM, so
@@ -239,10 +250,10 @@ return AgentForge.RedTeam.RedTeamAgent.RunOnce(
    must correspond to an enabled toggle; no enabled `bootstrap.*` keys
    may be missing; `len(turns)` must equal N from step 2 (and therefore
    lie in `[1, 4]`). Exit non-zero on any violation.
-6. `INSERT INTO PenetrationTests (Category, Bootstrap, Turns, Description, ...)`
-   storing the validated `bootstrap` and `turns` as serialized JSON
-   strings (or `NULL` for `Bootstrap` when no bootstrap toggles are on).
-   Print the inserted ID.
+6. `INSERT INTO PenetrationTests (Category, Bootstrap, Turns, Description, ...)`.
+   `Bootstrap` is a serialized JSON object that always carries the
+   sampled `patient_id` and any toggle-enabled `bootstrap.*` keys.
+   `Turns` is the LLM's validated array. Print the inserted ID.
 
 The Red Team agent's prompt naturally narrows as more toggles flip on:
 v1 produces tests that differ only in `user_goal` (and turn count, which
@@ -265,22 +276,20 @@ public static class PenetrationHarness
 {
     public static int RunOnce(
         string connectionString,
-        string copilotBaseUrl,    // e.g. https://openemr-web-production.up.railway.app
-        string username,
-        string password,
-        int patientId);
+        string copilotBaseUrl);   // e.g. https://openemr-web-production.up.railway.app
 }
 ```
+
+`patient_id` is read from the test row's `Bootstrap`; the username and
+password come from the `bootstrap.user` toggle's default (or the row,
+when the toggle is enabled). No per-invocation parameters for those.
 
 **`Program.cs`:**
 
 ```csharp
 return AgentForge.Harness.PenetrationHarness.RunOnce(
     Environment.GetEnvironmentVariable("AGENTFORGE_DB")!,
-    Environment.GetEnvironmentVariable("COPILOT_BASE_URL") ?? "https://openemr-web-production.up.railway.app",
-    Environment.GetEnvironmentVariable("COPILOT_USER") ?? "admin",
-    Environment.GetEnvironmentVariable("COPILOT_PASS") ?? "pass",
-    int.Parse(Environment.GetEnvironmentVariable("COPILOT_PID") ?? "1"));
+    Environment.GetEnvironmentVariable("COPILOT_BASE_URL") ?? "https://openemr-web-production.up.railway.app");
 ```
 
 **`RunOnce` body — load toggles, bootstrap, turn loop, record:**
