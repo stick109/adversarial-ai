@@ -1,0 +1,122 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Dashboard";
+
+    string TruncateText(string? s, int n)
+    {
+        if (string.IsNullOrEmpty(s)) return string.Empty;
+        return s.Length <= n ? s : s.Substring(0, n) + "...";
+    }
+}
+
+<h2>Run a new Red Team probe</h2>
+
+<form method="post" asp-page-handler="StartRedTeam" class="row-actions">
+    <button type="submit" disabled="@(Model.HasApiKey ? null : "disabled")">Start RedTeam run</button>
+    @if (!Model.HasApiKey)
+    {
+        <span class="muted">— set <code>OPENROUTER_API_KEY</code> in the container env to enable.</span>
+    }
+    else
+    {
+        <span class="muted">— invokes <code>RedTeamAgent.RunOnce</code> in a background task and redirects to the run page.</span>
+    }
+</form>
+
+<h2>Recent RedTeam runs <span class="muted">(<code>RedTeamRuns</code>, last 20)</span></h2>
+
+@if (Model.Runs.Count == 0)
+{
+    <p class="muted">No runs yet.</p>
+}
+else
+{
+    <table>
+        <thead><tr>
+            <th>Id</th><th>StartedAt (UTC)</th><th>FinishedAt (UTC)</th><th>Status</th>
+            <th>Exit</th><th>ResultTestId</th><th>Error</th>
+        </tr></thead>
+        <tbody>
+        @foreach (var r in Model.Runs)
+        {
+            <tr>
+                <td class="num"><a href="/Run/@r.Id">@r.Id</a></td>
+                <td class="code">@r.StartedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td class="code">@(r.FinishedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</td>
+                <td class="status-@r.Status">@r.Status</td>
+                <td class="num">@(r.ExitCode?.ToString() ?? "—")</td>
+                <td class="num">@(r.ResultTestId?.ToString() ?? "—")</td>
+                <td>@TruncateText(r.ErrorMessage, 80)</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+<h2>Penetration tests <span class="muted">(<code>PenetrationTests</code>, last 50)</span></h2>
+
+<table>
+    <thead><tr>
+        <th>Id</th><th>CreatedAt (UTC)</th><th>Category</th><th>Model</th><th>By</th>
+        <th>PID</th><th>Turns</th><th>Execs</th><th>Description</th>
+    </tr></thead>
+    <tbody>
+    @foreach (var t in Model.Tests)
+    {
+        <tr>
+            <td class="num">@t.Id</td>
+            <td class="code">@t.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+            <td>@t.Category</td>
+            <td class="code">@(t.GeneratorModel ?? "—")</td>
+            <td>@t.CreatedBy</td>
+            <td class="num">@t.PatientId</td>
+            <td class="num">@t.TurnCount</td>
+            <td class="num">@t.ExecutionCount</td>
+            <td>@TruncateText(t.Description, 100)</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+<h2>Penetration test executions <span class="muted">(<code>PenetrationTestExecutions</code>, last 50)</span></h2>
+
+<table>
+    <thead><tr>
+        <th>Id</th><th>TestId</th><th>ExecutedAt (UTC)</th><th>Outcome</th><th>Steps</th><th>Bytes</th><th>Error</th>
+    </tr></thead>
+    <tbody>
+    @foreach (var e in Model.Executions)
+    {
+        <tr>
+            <td class="num">@e.Id</td>
+            <td class="num">@e.TestId</td>
+            <td class="code">@e.ExecutedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+            <td class="outcome-@e.Outcome">@e.Outcome</td>
+            <td class="num">@e.StepCount</td>
+            <td class="num">@(e.StepBytes?.ToString("N0") ?? "—")</td>
+            <td>@(e.ErrorClass ?? "")</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+<h2>Variability toggles <span class="muted">(<code>VariabilityToggles</code>)</span></h2>
+
+<table>
+    <thead><tr>
+        <th>Pri</th><th>FieldPath</th><th>Enabled?</th><th>Default</th><th>Description</th>
+    </tr></thead>
+    <tbody>
+    @foreach (var v in Model.Toggles)
+    {
+        <tr>
+            <td class="num">@v.Priority</td>
+            <td class="code">@v.FieldPath</td>
+            <td>@(v.IsEnabled ? "yes" : "—")</td>
+            <td class="code">@v.DefaultJson</td>
+            <td>@v.Description</td>
+        </tr>
+    }
+    </tbody>
+</table>

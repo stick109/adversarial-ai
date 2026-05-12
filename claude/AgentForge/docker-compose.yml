@@ -8,11 +8,28 @@ services:
       MSSQL_PID: "Developer"
     # Host port 14330 -> container 1433: the host's default SQL Server
     # (MSSQLSERVER service) often binds 1433 first, so we publish on a
-    # less-contested port.  Connection strings use Server=localhost,14330.
+    # less-contested port.  Connection strings from the host use
+    # Server=localhost,14330; from sibling containers use agentforge-db:1433.
     ports:
       - "14330:1433"
     volumes:
       - agentforge-db:/var/opt/mssql
+
+  agentforge-web:
+    build:
+      context: .
+      dockerfile: src/AgentForge.Web/Dockerfile
+    container_name: agentforge-web
+    depends_on:
+      - agentforge-db
+    environment:
+      AGENTFORGE_DB: "Server=agentforge-db,1433;Database=AgentForge;User Id=sa;Password=AgentForge!2026;TrustServerCertificate=true"
+      COPILOT_BASE_URL: "https://openemr-web-production.up.railway.app"
+      # Required to enable the "Start RedTeam run" button.  Inherited
+      # from the host shell or a .env file next to this compose file.
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+    ports:
+      - "5080:8080"
 
 volumes:
   agentforge-db:
