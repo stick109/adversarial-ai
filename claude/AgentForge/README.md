@@ -80,7 +80,28 @@ dotnet run --project src\AgentForge.Web
 $env:OPENROUTER_API_KEY = "sk-or-..."   # picked up by docker compose substitution
 docker compose up -d --build
 # dashboard at http://localhost:5080
-# (the schema must already be applied; run .\deploy-sql-schema.ps1 first)
+```
+
+The Web app applies `db/001_schema.sql` automatically on startup
+(idempotent), so no separate `deploy-sql-schema.ps1` step is required.
+Set `AGENTFORGE_SKIP_SCHEMA=1` to disable the auto-apply if you'd
+rather own the schema externally.
+
+### On Railway
+
+Live at <https://agentforge-web-production.up.railway.app>. Project
+`agentforge` has two services:
+
+- `agentforge-db` — `mcr.microsoft.com/mssql/server:2022-latest`, persistent volume at `/var/opt/mssql`.
+- `agentforge-web` — built from `src/AgentForge.Web/Dockerfile` (per `railway.json`), reaches the DB at `agentforge-db.railway.internal:1433`.
+
+Deploy a new build with `railway up --service agentforge-web` from
+this directory. Env vars on the Web service:
+
+```
+AGENTFORGE_DB        Server=agentforge-db.railway.internal,1433;Database=AgentForge;User Id=sa;Password=...;TrustServerCertificate=true
+COPILOT_BASE_URL     https://openemr-web-production.up.railway.app
+OPENROUTER_API_KEY   sk-or-...
 ```
 
 The Web container references the RedTeam project, so clicking
