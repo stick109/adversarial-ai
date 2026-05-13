@@ -129,24 +129,25 @@ public static class SchemaApplier
             $"SQL Server did not accept connections within {maxSeconds}s. Last error: {last?.Message}");
     }
 
-    // Probe the user DB by actually running `USE <db>` (the operation that
-    // batch 2 of the schema script performs).  This is stricter than reading
-    // sys.databases.state_desc -- empirically a DB can be reported ONLINE
-    // while the server-startup phase that gates USE statements is still
-    // active, in which case USE throws error 904.
-    //
-    // Error numbers we recognise on the probe:
-    //   911 -- database does not exist (first install, fine; schema batch 1
-    //          will CREATE it).
-    //   904 -- database cannot be autostarted during server shutdown or
-    //          startup (still recovering; keep waiting).
-    //   anything else -- log and keep waiting until the deadline.
+    // Probe the user DB before the schema files run.  Three cases the
+    // schema files can handle, so we return early:
+    //   - DB does not exist          -- 002-create-db.sql creates it.
+    //   - DB in a non-ONLINE state   -- e.g. RECOVERY_PENDING because a
+    //                                   prior migration left FILENAME
+    //                                   metadata pointing at files that
+    //                                   are not on disk; 001b drops the
+    //                                   broken DB and create-db rebuilds.
+    //   - DB ONLINE                  -- sanity-check USE (catches the
+    //                                   904 window where SQL Server is
+    //                                   ONLINE but not yet accepting
+    //                                   USE statements).
+    // Only RECOVERING (crash recovery on container start) keeps us in
+    // the wait loop; everything else falls through immediately.
     private static void WaitForUserDatabaseOnline(string masterConnStr, string dbName, ILogger? logger, int maxSeconds)
     {
         var deadline = DateTime.UtcNow.AddSeconds(maxSeconds);
         Exception? lastError = null;
         var attempt = 0;
-        // Quote dbName as a SQL identifier; USE does not accept parameters.
         var useSql = $"USE {QuoteIdent(dbName)}; SELECT 1;";
         while (DateTime.UtcNow < deadline)
         {
@@ -155,17 +156,36 @@ public static class SchemaApplier
             {
                 using var db = new SqlConnection(masterConnStr);
                 db.Open();
-                using var cmd = new SqlCommand(useSql, db);
-                cmd.ExecuteScalar();
-                logger?.LogInformation(
-                    "Database {Db} accepts USE after {Attempts} attempt(s)", dbName, attempt);
-                return;
-            }
-            catch (SqlException sx) when (sx.Number == 911 || sx.Number == 4060)
-            {
-                logger?.LogInformation(
-                    "Database {Db} does not exist yet; schema will create it", dbName);
-                return;
+                using var stateCmd = new SqlCommand(
+                    "SELECT state_desc FROM sys.databases WHERE name = @n", db);
+                stateCmd.Parameters.AddWithValue("@n", dbName);
+                var state = stateCmd.ExecuteScalar() as string;
+                if (state == null)
+                {
+                    logger?.LogInformation(
+                        "Database {Db} does not exist yet; schema will create it", dbName);
+                    return;
+                }
+                if (state != "ONLINE" && state != "RECOVERING")
+                {
+                    logger?.LogWarning(
+                        "Database {Db} state = {State}; proceeding with schema apply (may recover/recreate)",
+                        dbName, state);
+                    return;
+                }
+                if (state == "ONLINE")
+                {
+                    using var useCmd = new SqlCommand(useSql, db);
+                    useCmd.ExecuteScalar();
+                    logger?.LogInformation(
+                        "Database {Db} accepts USE after {Attempts} attempt(s)", dbName, attempt);
+                    return;
+                }
+                if (attempt == 1 || attempt % 5 == 0)
+                {
+                    logger?.LogInformation(
+                        "Database {Db} state = RECOVERING; waiting (attempt {Attempt})", dbName, attempt);
+                }
             }
             catch (Exception ex)
             {
@@ -173,14 +193,14 @@ public static class SchemaApplier
                 if (attempt == 1 || attempt % 5 == 0)
                 {
                     logger?.LogInformation(
-                        "Waiting for database {Db} to accept USE (attempt {Attempt}): {Message}",
+                        "Probe error for database {Db} (attempt {Attempt}): {Message}",
                         dbName, attempt, ex.Message);
                 }
             }
             Thread.Sleep(2000);
         }
         throw new InvalidOperationException(
-            $"Database {dbName} did not accept USE within {maxSeconds}s. " +
+            $"Database {dbName} did not reach a usable state within {maxSeconds}s. " +
             $"Last error: {lastError?.Message}");
     }
 

@@ -1,47 +1,40 @@
--- Rename the SecurityAnalyzer DB's *logical* file names from AgentForge
--- to SecurityAnalyzer.  This is an online ALTER DATABASE MODIFY FILE
--- NEWNAME, so no xp_cmdshell or shell access is required.
+-- Two responsibilities, both idempotent:
 --
--- Renaming the *physical* .mdf/.ldf files on disk is NOT done here,
--- because that needs either (a) xp_cmdshell, which Railway's SQL Server
--- edition does not support (sp_configure errors with "option not
--- supported by this edition"), or (b) shell access to the DB container,
--- which we don't have over the standard SQL connection.  The physical
--- file names (still AgentForge.mdf / AgentForge_log.ldf on Railway) are
--- internal to SQL Server and never referenced by the application code,
--- so this leftover is purely cosmetic on the data volume.
+--   1. If SecurityAnalyzer exists but is NOT online (e.g. RECOVERY_PENDING
+--      because an earlier migration pointed FILENAME at .mdf/.ldf paths
+--      that are not on disk), drop it.  002-create-db.sql will recreate
+--      it cleanly with default file names (SecurityAnalyzer.mdf /
+--      SecurityAnalyzer_log.ldf), and the rest of the schema fills in
+--      the tables and seeds.  This is the data-loss recovery path -- we
+--      use it only when the DB is already inaccessible.
 --
--- Recovery clause: a prior version of this script tried to do the full
--- rename via xp_cmdshell on Railway; when xp_cmdshell was blocked, the
--- script still updated FILENAME metadata to point at SecurityAnalyzer.*
--- paths that don't exist on disk, leaving the DB in RECOVERY_PENDING.
--- The first IF detects that broken state (DB not ONLINE) and points
--- FILENAME back at AgentForge.* so SET ONLINE succeeds.  Idempotent on
--- the state_desc guard; on healthy installs it short-circuits.
+--   2. If SecurityAnalyzer is online and healthy but its logical file
+--      names are still AgentForge / AgentForge_log (the case on a volume
+--      that was renamed from the old AgentForge DB in place), rename the
+--      logical names to match.  This is an online ALTER MODIFY FILE
+--      NEWNAME, no xp_cmdshell required.  We do NOT touch FILENAME or
+--      move physical files: doing that needs either xp_cmdshell (not
+--      supported on Railway's SQL edition) or shell access to the DB
+--      container, and the physical file names are internal to SQL
+--      Server -- the application never references them.
+--
+-- Healthy installs (local that already has SecurityAnalyzer.* logical
+-- names, and fresh installs where SecurityAnalyzer does not exist yet)
+-- short-circuit on both guards.
 
--- Recovery: if a prior FILENAME update made SecurityAnalyzer
--- inaccessible, point FILENAME back at the AgentForge.* files that
--- actually exist on disk, and bring the DB online.
+-- 1. Drop a broken SecurityAnalyzer so create-db can rebuild it.
 IF DB_ID(N'SecurityAnalyzer') IS NOT NULL
    AND EXISTS (
        SELECT 1 FROM sys.databases
         WHERE name = N'SecurityAnalyzer' AND state_desc <> N'ONLINE'
    )
 BEGIN
-    ALTER DATABASE [SecurityAnalyzer] MODIFY FILE (
-        NAME = N'SecurityAnalyzer',
-        FILENAME = N'/var/opt/mssql/data/AgentForge.mdf'
-    );
-    ALTER DATABASE [SecurityAnalyzer] MODIFY FILE (
-        NAME = N'SecurityAnalyzer_log',
-        FILENAME = N'/var/opt/mssql/data/AgentForge_log.ldf'
-    );
-    ALTER DATABASE [SecurityAnalyzer] SET ONLINE;
+    ALTER DATABASE [SecurityAnalyzer] SET OFFLINE WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [SecurityAnalyzer];
 END
 
--- Logical name rename: AgentForge / AgentForge_log -> SecurityAnalyzer
--- / SecurityAnalyzer_log.  Online operation.  Idempotent on the LIKE
--- guard; local (renamed manually) and fresh installs skip.
+-- 2. Logical file rename for SecurityAnalyzer DBs that came from the
+-- AgentForge in-place rename and still carry the old logical names.
 IF DB_ID(N'SecurityAnalyzer') IS NOT NULL
    AND EXISTS (
        SELECT 1 FROM sys.master_files
