@@ -22,7 +22,7 @@ public class RunModel : PageModel
         db.Open();
 
         Run = db.QueryFirstOrDefault<RunRow>(@"
-            SELECT Id, StartedAt, FinishedAt, Status, ExitCode, ResultTestId, ErrorMessage
+            SELECT Id, StartedAt, FinishedAt, Status, ExitCode, ResultTestId, ErrorMessageId
               FROM dbo.RedTeamRuns
              WHERE Id = @Id;", new { Id = id });
 
@@ -72,7 +72,7 @@ public class RunModel : PageModel
         }
     }
 
-    public sealed record RunRow(int Id, DateTime StartedAt, DateTime? FinishedAt, string Status, int? ExitCode, int? ResultTestId, string? ErrorMessage);
+    public sealed record RunRow(int Id, DateTime StartedAt, DateTime? FinishedAt, string Status, int? ExitCode, int? ResultTestId, int? ErrorMessageId);
     public sealed record TestRow(int Id, DateTime CreatedAt, string Category, string? GeneratorModel, string CreatedBy, string Description, string Bootstrap, string Turns);
     public sealed record ExecRow(int Id, DateTime ExecutedAt, string Outcome, string? ErrorClass);
 }

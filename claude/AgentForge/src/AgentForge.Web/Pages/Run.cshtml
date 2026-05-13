@@ -27,10 +27,10 @@
     {
         <p class="muted">Page auto-refreshes every 2 seconds while the run is in flight.</p>
     }
-    @if (Model.Run.ErrorMessage is not null)
+    @if (Model.Run.ErrorMessageId is int errId)
     {
         <h3>Error</h3>
-        <pre>@Model.Run.ErrorMessage</pre>
+        <p><a href="/ErrorMessage/@errId">show error message #@errId</a></p>
     }
 </div>
 

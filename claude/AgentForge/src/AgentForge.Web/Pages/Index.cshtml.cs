@@ -52,9 +52,12 @@ public class IndexModel : PageModel
               FROM dbo.PenetrationTestExecutions e
              ORDER BY e.Id DESC").AsList();
 
+        // Only the small ErrorMessageId FK is selected here -- the
+        // potentially-large message text lives in dbo.ErrorMessages
+        // and is fetched on-demand by the /Error/{id} page.
         Runs = db.Query<RunRow>(@"
             SELECT TOP 20 r.Id, r.StartedAt, r.FinishedAt, r.Status, r.ExitCode,
-                          r.ResultTestId, r.ErrorMessage
+                          r.ResultTestId, r.ErrorMessageId
               FROM dbo.RedTeamRuns r
              ORDER BY r.Id DESC").AsList();
     }
@@ -72,5 +75,5 @@ public class IndexModel : PageModel
     public sealed record ToggleRow(string FieldPath, int Priority, bool IsEnabled, string? DefaultJson, string Description);
     public sealed record TestRow(int Id, DateTime CreatedAt, string Category, string? GeneratorModel, string CreatedBy, int TurnCount, string? PatientId, string Description, int ExecutionCount);
     public sealed record ExecutionRow(int Id, int TestId, DateTime ExecutedAt, string Outcome, string? ErrorClass, long? StepBytes, int StepCount);
-    public sealed record RunRow(int Id, DateTime StartedAt, DateTime? FinishedAt, string Status, int? ExitCode, int? ResultTestId, string? ErrorMessage);
+    public sealed record RunRow(int Id, DateTime StartedAt, DateTime? FinishedAt, string Status, int? ExitCode, int? ResultTestId, int? ErrorMessageId);
 }

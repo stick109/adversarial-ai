@@ -8,7 +8,9 @@ namespace AgentForge.Web;
 //   1. Insert a RedTeamRuns row with Status='running', return its Id.
 //   2. Kick off a background Task.Run that calls RedTeamAgent.RunOnce.
 //   3. When RunOnce returns (or throws), update the row with FinishedAt
-//      + Status + ExitCode + ResultTestId + ErrorMessage.
+//      + Status + ExitCode + ResultTestId, and -- if there was a real
+//      error -- write the full text into dbo.ErrorMessages and stamp
+//      its Id onto the run row.
 //
 // The HTTP request returns the runId immediately; the UI redirects to
 // /Run/{id} which auto-refreshes until Status != 'running'.
@@ -50,7 +52,10 @@ public static class RedTeamRunner
         }
         catch (Exception ex)
         {
-            errorMessage = $"{ex.GetType().FullName}: {ex.Message}";
+            // Capture the full type + message + stack so the UI shows
+            // exactly what happened (OpenRouter response body, validator
+            // failure, network blip, etc).
+            errorMessage = $"{ex.GetType().FullName}: {ex.Message}\n\n{ex.StackTrace}";
             logger?.LogError(ex, "RedTeam run {RunId} threw", runId);
         }
 
@@ -77,20 +82,31 @@ public static class RedTeamRunner
         var status = exitCode == 0 ? "ok" : "failed";
         if (errorMessage is null && exitCode != 0)
         {
-            errorMessage = $"RedTeamAgent.RunOnce returned exit code {exitCode} (see container logs)";
+            errorMessage = $"RedTeamAgent.RunOnce returned exit code {exitCode} with no exception (see container logs)";
         }
 
         try
         {
             using var db = new SqlConnection(connectionString);
             db.Open();
+
+            int? errorMessageId = null;
+            if (errorMessage is not null)
+            {
+                errorMessageId = db.ExecuteScalar<int>(
+                    @"INSERT INTO dbo.ErrorMessages (Message)
+                      OUTPUT INSERTED.Id
+                      VALUES (@Message);",
+                    new { Message = errorMessage });
+            }
+
             db.Execute(
                 @"UPDATE dbo.RedTeamRuns
-                     SET FinishedAt   = SYSUTCDATETIME(),
-                         Status       = @Status,
-                         ExitCode     = @ExitCode,
-                         ResultTestId = @TestId,
-                         ErrorMessage = @ErrorMessage
+                     SET FinishedAt     = SYSUTCDATETIME(),
+                         Status         = @Status,
+                         ExitCode       = @ExitCode,
+                         ResultTestId   = @TestId,
+                         ErrorMessageId = @ErrorMessageId
                    WHERE Id = @Id;",
                 new
                 {
@@ -98,7 +114,7 @@ public static class RedTeamRunner
                     Status = status,
                     ExitCode = exitCode,
                     TestId = insertedTestId,
-                    ErrorMessage = errorMessage,
+                    ErrorMessageId = errorMessageId,
                 });
         }
         catch (Exception ex)

@@ -64,11 +64,26 @@ CREATE TABLE dbo.VariabilityToggles (
 );
 GO
 
+-- Error messages live in their own table so dashboard queries that
+-- list runs (or executions, in the future) only have to select a small
+-- INT FK.  The full text -- which can be a multi-KB OpenRouter
+-- response or a stack trace -- is fetched only when the user clicks
+-- through to the per-error page.
+IF OBJECT_ID(N'dbo.ErrorMessages', N'U') IS NULL
+CREATE TABLE dbo.ErrorMessages (
+    Id          INT IDENTITY(1,1) PRIMARY KEY,
+    CreatedAt   DATETIME2     NOT NULL DEFAULT SYSUTCDATETIME(),
+    Message     NVARCHAR(MAX) NOT NULL
+);
+GO
+
 -- One row per UI-triggered Red Team invocation.  The Web app inserts
 -- the row at the moment the user clicks "Start", returns the runId, and
 -- updates the row from a background task once RedTeamAgent.RunOnce
 -- completes.  Lets the UI render an honest "running / ok / failed"
 -- status without polling the LLM client.
+--
+-- ErrorMessageId points at dbo.ErrorMessages -- see comment above.
 IF OBJECT_ID(N'dbo.RedTeamRuns', N'U') IS NULL
 CREATE TABLE dbo.RedTeamRuns (
     Id              INT IDENTITY(1,1) PRIMARY KEY,
@@ -77,8 +92,48 @@ CREATE TABLE dbo.RedTeamRuns (
     Status          NVARCHAR(16)  NOT NULL DEFAULT N'running',  -- running, ok, failed
     ExitCode        INT           NULL,                          -- value RunOnce returned
     ResultTestId    INT           NULL REFERENCES dbo.PenetrationTests(Id),
-    ErrorMessage    NVARCHAR(MAX) NULL
+    ErrorMessageId  INT           NULL REFERENCES dbo.ErrorMessages(Id)
 );
+GO
+
+-- Upgrade-in-place: if RedTeamRuns predates ErrorMessages, add the FK
+-- column, move existing inline ErrorMessage text into ErrorMessages,
+-- then drop the old column.  All idempotent.
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns
+     WHERE Name = N'ErrorMessageId'
+       AND Object_ID = Object_ID(N'dbo.RedTeamRuns')
+)
+    ALTER TABLE dbo.RedTeamRuns ADD ErrorMessageId INT NULL REFERENCES dbo.ErrorMessages(Id);
+GO
+
+IF EXISTS (
+    SELECT 1 FROM sys.columns
+     WHERE Name = N'ErrorMessage'
+       AND Object_ID = Object_ID(N'dbo.RedTeamRuns')
+)
+BEGIN
+    -- Move each non-null ErrorMessage into ErrorMessages and stamp the FK.
+    DECLARE @runId INT, @msg NVARCHAR(MAX), @errId INT;
+    DECLARE migrate_err CURSOR LOCAL FAST_FORWARD FOR
+        SELECT Id, ErrorMessage
+          FROM dbo.RedTeamRuns
+         WHERE ErrorMessage IS NOT NULL
+           AND ErrorMessageId IS NULL;
+    OPEN migrate_err;
+    FETCH NEXT FROM migrate_err INTO @runId, @msg;
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        INSERT INTO dbo.ErrorMessages (Message) VALUES (@msg);
+        SET @errId = CAST(SCOPE_IDENTITY() AS INT);
+        UPDATE dbo.RedTeamRuns SET ErrorMessageId = @errId WHERE Id = @runId;
+        FETCH NEXT FROM migrate_err INTO @runId, @msg;
+    END
+    CLOSE migrate_err;
+    DEALLOCATE migrate_err;
+
+    ALTER TABLE dbo.RedTeamRuns DROP COLUMN ErrorMessage;
+END
 GO
 
 ------------------------------------------------------------------

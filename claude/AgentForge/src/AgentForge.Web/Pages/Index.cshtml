@@ -47,7 +47,16 @@ else
                 <td class="status-@r.Status">@r.Status</td>
                 <td class="num">@(r.ExitCode?.ToString() ?? "—")</td>
                 <td class="num">@(r.ResultTestId?.ToString() ?? "—")</td>
-                <td>@TruncateText(r.ErrorMessage, 80)</td>
+                <td>
+                    @if (r.ErrorMessageId is int errId)
+                    {
+                        <a href="/ErrorMessage/@errId">show #@errId</a>
+                    }
+                    else
+                    {
+                        <text>—</text>
+                    }
+                </td>
             </tr>
         }
         </tbody>

@@ -1,0 +1,32 @@
+@page "/ErrorMessage/{id:int}"
+@model ErrorMessageModel
+@{
+    ViewData["Title"] = $"Error #{Model.Id}";
+}
+
+<p>
+    <a href="/">&larr; Dashboard</a>
+    @if (Model.OwningRunId is int runId)
+    {
+        <text> · </text>
+        <a href="/Run/@runId">RedTeam run #@runId</a>
+    }
+</p>
+
+<h2>Error message #@Model.Id</h2>
+
+<div class="panel">
+    <dl class="kv">
+        <dt>Captured (UTC)</dt><dd class="code">@Model.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</dd>
+        <dt>Bytes</dt><dd>@Model.Message.Length</dd>
+    </dl>
+
+    <h3>Raw message</h3>
+    <pre>@Model.Message</pre>
+
+    @if (Model.PrettyJson is not null)
+    {
+        <h3>Embedded JSON (pretty-printed)</h3>
+        <pre>@Model.PrettyJson</pre>
+    }
+</div>

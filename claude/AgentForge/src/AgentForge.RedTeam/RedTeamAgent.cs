@@ -91,19 +91,12 @@ public static class RedTeamAgent
             return 2;
         }
 
-        // 4-5. Build prompt + call OpenRouter.
-        LlmResponse llmResponse;
-        try
-        {
-            llmResponse = CallOpenRouter(
-                toggles, enabledBootstrap, enabledTurn, turnCount, projected,
-                generatorModel, openRouterApiKey);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"[RedTeam] OpenRouter call failed: {ex.GetType().Name}: {ex.Message}");
-            return 4;
-        }
+        // 4-5. Build prompt + call OpenRouter.  Exceptions propagate so
+        //      the caller (Web wrapper or console host) can capture the
+        //      full provider response, not just a generic "exit code 4".
+        var llmResponse = CallOpenRouter(
+            toggles, enabledBootstrap, enabledTurn, turnCount, projected,
+            generatorModel, openRouterApiKey);
 
         // 5. Validate the LLM's response against the toggle set.
         if (!Validate(llmResponse, enabledBootstrap, enabledTurn, turnCount, out var error))
