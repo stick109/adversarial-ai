@@ -13,13 +13,13 @@
     <link rel="stylesheet" href="~/css/site.css" />
 </head>
 <body>
-    <header>
-        <h1><a href="/">AgentForge</a></h1>
-        <p class="lede">Red Team / Penetration Harness for the OpenEMR Clinical Co-Pilot</p>
+    <header class="topbar">
+        <a href="/" class="brand">AgentForge</a>
+        <span class="topbar-tag">Red Team / Penetration Harness — OpenEMR Clinical Co-Pilot</span>
         @if (User?.Identity?.IsAuthenticated == true)
         {
-            <div class="auth-bar">
-                <span class="muted">Signed in as <strong>@User.Identity.Name</strong></span>
+            <div class="topbar-right">
+                <span class="muted">@User.Identity.Name</span>
                 <form method="post" action="/Logout" class="auth-logout">
                     <button type="submit" class="btn-link">Sign out</button>
                 </form>

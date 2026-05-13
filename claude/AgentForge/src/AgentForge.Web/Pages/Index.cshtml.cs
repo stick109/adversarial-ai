@@ -83,12 +83,13 @@ public class IndexModel : PageModel
 
     // Flip VariabilityToggles.IsEnabled for the row whose FieldPath
     // matches.  Returns to the dashboard so the operator sees the new
-    // state inline; no flash message needed.
+    // state inline; the #tab-toggles fragment keeps the user on the
+    // Toggles tab instead of bouncing back to the default tab.
     public IActionResult OnPostToggleVariability(string fieldPath)
     {
         if (string.IsNullOrWhiteSpace(fieldPath))
         {
-            return RedirectToPage();
+            return LocalRedirect("/#tab-toggles");
         }
 
         var connStr = Environment.GetEnvironmentVariable("AGENTFORGE_DB")
@@ -101,7 +102,7 @@ public class IndexModel : PageModel
              WHERE FieldPath = @fp",
             new { fp = fieldPath });
 
-        return RedirectToPage();
+        return LocalRedirect("/#tab-toggles");
     }
 
     public sealed record ToggleRow(string FieldPath, int Priority, bool IsEnabled, string? DefaultJson, string Description);

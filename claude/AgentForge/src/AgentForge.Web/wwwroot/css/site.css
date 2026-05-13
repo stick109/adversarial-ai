@@ -13,14 +13,26 @@
 
 * { box-sizing: border-box; }
 html { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--fg); background: var(--bg); }
-body { max-width: 1400px; margin: 0 auto; padding: 1rem 2rem; }
+body { margin: 0; }
+main { max-width: 1400px; margin: 0 auto; padding: 0.75rem 2rem 2rem; }
 
-header h1 { margin: 0; font-size: 1.4rem; }
-header h1 a { color: var(--fg); text-decoration: none; }
-header .lede { color: var(--fg-dim); margin: 0 0 1.5rem; }
+/* Thin top strip: brand | tagline | username + sign out */
+header.topbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.35rem 1.25rem;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+}
+header.topbar .brand { font-weight: 700; color: var(--fg); text-decoration: none; font-size: 0.95rem; }
+header.topbar .topbar-tag { color: var(--fg-dim); flex: 1; }
+header.topbar .topbar-right { display: flex; align-items: center; gap: 0.5rem; }
+header.topbar .auth-logout { display: inline; margin: 0; }
 
-h2 { font-size: 1.05rem; margin: 2rem 0 0.5rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
-h2:first-of-type { border-top: none; padding-top: 0; }
+h2 { font-size: 1.05rem; margin: 1.5rem 0 0.5rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+h2:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
 h3 { font-size: 0.95rem; margin: 1rem 0 0.4rem; color: var(--fg-dim); font-weight: 600; }
 
 table { border-collapse: collapse; width: 100%; background: var(--bg-card); font-size: 0.85rem; }
@@ -58,10 +70,44 @@ a:hover { text-decoration: underline; }
 
 .row-actions { margin: 0.5rem 0 1rem; display: flex; gap: 0.5rem; align-items: center; }
 
-.auth-bar { display: flex; align-items: baseline; gap: 0.6rem; margin: -0.5rem 0 1rem; font-size: 0.85rem; }
-.auth-logout { display: inline; margin: 0; }
 .btn-link { background: none; color: var(--accent); border: none; padding: 0; font: inherit; cursor: pointer; }
 .btn-link:hover { text-decoration: underline; background: none; }
+
+/* Pure-CSS :target tabs.  Default-visible panel is #tab-tests (the
+   first one) when no fragment is set; otherwise only the matching
+   :target panel shows.  Uses :has() to drive active-tab highlighting
+   from the body's current :target state. */
+.tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin: 0 0 1rem;
+}
+.tabs .tab {
+    padding: 0.5rem 1rem;
+    color: var(--fg-dim);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+.tabs .tab:hover { color: var(--fg); text-decoration: none; }
+
+.tab-panel { display: none; }
+.tab-panel:target { display: block; }
+body:not(:has(.tab-panel:target)) #tab-tests { display: block; }
+
+body:has(#tab-tests:target)      .tabs .tab[href="#tab-tests"],
+body:has(#tab-executions:target) .tabs .tab[href="#tab-executions"],
+body:has(#tab-toggles:target)    .tabs .tab[href="#tab-toggles"] {
+    color: var(--fg);
+    border-bottom-color: var(--accent);
+}
+body:not(:has(.tab-panel:target)) .tabs .tab[href="#tab-tests"] {
+    color: var(--fg);
+    border-bottom-color: var(--accent);
+}
 
 form.login { display: flex; flex-direction: column; gap: 0.6rem; max-width: 22rem; margin: 0.75rem 0; }
 form.login label { display: flex; flex-direction: column; gap: 0.2rem; }
