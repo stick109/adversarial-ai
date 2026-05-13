@@ -36,7 +36,11 @@ if (-not (Test-Path $composeFile)) {
 }
 
 # `all` means: no service argument, so docker compose acts on every service.
-$serviceArgs = if ($Service -eq 'all') { @() } else { @($Service) }
+# Type the array explicitly: PowerShell's `if` expression unwraps a
+# single-element array back into a scalar, after which `@serviceArgs`
+# would splat a string char-by-char ('a','g','e',...) instead of as one
+# argument.  Declaring [string[]] preserves the array shape.
+[string[]]$serviceArgs = if ($Service -eq 'all') { @() } else { @($Service) }
 $targetLabel = if ($Service -eq 'all') { '(all services)' } else { $Service }
 
 Write-Host "==> rebuild cycle for $targetLabel" -ForegroundColor Cyan
