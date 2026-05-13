@@ -1,15 +1,14 @@
 # SecurityAnalyzer
 
-Two C# console apps and two ASP.NET Core services, wired around a SQL
+One C# console app and two ASP.NET Core services, wired around a SQL
 Server database. Together they form an iteration of an adversarial
 loop against the OpenEMR Clinical Co-Pilot:
 
 | Component             | What it does                                                                                                                                       |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SecurityAnalyzer.RedTeam`  | Invents **one** new penetration test and writes it to `PenetrationTests`.                                                                          |
-| `SecurityAnalyzer.Harness`  | Picks the oldest unrun test and exercises it against the live Co-Pilot.                                                                            |
 | `SecurityAnalyzer.Web`      | Razor Pages dashboard: shows the DB tables, starts new RedTeam runs, tracks status.                                                                |
-| `SecurityAnalyzer.Executor` | Runs the Harness on a timer (every `executor-loop-minutes` from `dbo.Parameters`); also exposes `POST /runs` to trigger an immediate run.          |
+| `SecurityAnalyzer.Executor` | Picks the oldest unrun test and exercises it against the live Co-Pilot. Runs on a timer (every `executor-loop-minutes` from `dbo.Parameters`); also exposes `POST /runs` to trigger an immediate run. |
 
 The full specification is in [..\plan.md](..\plan.md). This README only
 covers how to build and run.
@@ -52,15 +51,12 @@ $env:OPENROUTER_API_KEY  = "sk-or-..."                                       # r
 ```powershell
 # invent one new test
 dotnet run --project SecurityAnalyzer.RedTeam
-
-# run the oldest unrun test against the live Co-Pilot
-dotnet run --project SecurityAnalyzer.Harness
 ```
 
-Each app does exactly one DB write and exits. A future Orchestrator can
-call `RedTeamAgent.RunOnce(...)` / `PenetrationHarness.RunOnce(...)`
-directly in-process. The Executor (below) already does this for the
-harness on a timer.
+One DB write and exit. A future Orchestrator can call
+`RedTeamAgent.RunOnce(...)` directly in-process. Penetration tests are
+exercised by the Executor (below); see "Running the Executor" for the
+schedule and the `POST /runs` trigger.
 
 ---
 
@@ -193,7 +189,7 @@ Invoke-WebRequest -Uri https://security-analyzer-executor-production.up.railway.
 | Name                  | Used by                  | Default                                          | What it is                                                                                  |
 | --------------------- | ------------------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------- |
 | `SECURITY_ANALYZER_DB`       | all                      | *(none — required)*                              | SQL Server connection string for the `SecurityAnalyzer` DB.                                       |
-| `COPILOT_BASE_URL`    | Harness, Executor        | `https://openemr-web-production.up.railway.app`  | Base URL of the Clinical Co-Pilot.                                                          |
+| `COPILOT_BASE_URL`    | Executor                 | `https://openemr-web-production.up.railway.app`  | Base URL of the Clinical Co-Pilot.                                                          |
 | `OPENROUTER_API_KEY`  | RedTeam, Web             | *(none — required to invent new tests)*          | OpenRouter API key; used with `Authorization: Bearer ...` against the chat-completions API. |
 | `SECURITY_ANALYZER_SKIP_SCHEMA` | Web                   | `0`                                              | Set to `1` to skip the Web container's startup schema apply (e.g. when an external operator owns the schema). |
 
@@ -211,14 +207,13 @@ SecurityAnalyzer/
 ├── docker-compose.yml         # security-analyzer-db + -web + -executor
 ├── deploy-sql-schema.ps1      # one-shot schema deployer via host sqlcmd
 ├── rebuild-docker-image.ps1   # stop -> build -> up -d wrapper
-├── run-harness.ps1            # one-shot harness invocation outside Docker
+├── run-executor.ps1           # POST /runs to the local executor, poll for completion
 ├── railway.json               # restart policy only; Dockerfile per service via env var
 ├── db/
 │   └── 001_schema.sql         # CREATE IF NOT EXISTS + ALTER guards + MERGE seed
 ├── SecurityAnalyzer.RedTeam/        # console exe; RedTeamAgent.RunOnce
-├── SecurityAnalyzer.Harness/        # console exe; PenetrationHarness.RunOnce
 ├── SecurityAnalyzer.Web/            # Razor Pages dashboard + Dockerfile
-├── SecurityAnalyzer.Executor/       # Harness scheduler + POST /runs + Dockerfile
+├── SecurityAnalyzer.Executor/       # PenetrationHarness.RunOnce + schedule + POST /runs + Dockerfile
 ├── evidence/                  # gitignored, mirrors POC-1
 └── README.md
 ```

@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 using Dapper;
 using Microsoft.Data.SqlClient;
 
-namespace SecurityAnalyzer.Harness;
+namespace SecurityAnalyzer.Executor;
 
 // One invocation -> pick the next test, exercise it against the live
 // Clinical Co-Pilot, record one row in PenetrationTestExecutions.

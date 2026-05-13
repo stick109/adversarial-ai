@@ -1,19 +1,16 @@
 # Multi-stage build for SecurityAnalyzer.Executor (mirrors SecurityAnalyzer.Web).
 # Build context is the SecurityAnalyzer/ solution root; the compose file
-# specifies that via `context: .` so this Dockerfile can reach the
-# sibling SecurityAnalyzer.Harness project it references.
+# specifies that via `context: .`.
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-# Copy csproj files first to cache the restore layer.
+# Copy csproj first to cache the restore layer.
 COPY SecurityAnalyzer.Executor/SecurityAnalyzer.Executor.csproj SecurityAnalyzer.Executor/
-COPY SecurityAnalyzer.Harness/SecurityAnalyzer.Harness.csproj   SecurityAnalyzer.Harness/
 
 RUN dotnet restore SecurityAnalyzer.Executor/SecurityAnalyzer.Executor.csproj
 
 COPY SecurityAnalyzer.Executor/ SecurityAnalyzer.Executor/
-COPY SecurityAnalyzer.Harness/  SecurityAnalyzer.Harness/
 
 RUN dotnet publish SecurityAnalyzer.Executor/SecurityAnalyzer.Executor.csproj \
         -c Release \

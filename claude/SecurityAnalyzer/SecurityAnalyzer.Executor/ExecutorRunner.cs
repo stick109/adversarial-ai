@@ -1,4 +1,3 @@
-using SecurityAnalyzer.Harness;
 using Dapper;
 using Microsoft.Data.SqlClient;
 
