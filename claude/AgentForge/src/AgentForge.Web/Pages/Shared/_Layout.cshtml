@@ -16,6 +16,15 @@
     <header>
         <h1><a href="/">AgentForge</a></h1>
         <p class="lede">Red Team / Penetration Harness for the OpenEMR Clinical Co-Pilot</p>
+        @if (User?.Identity?.IsAuthenticated == true)
+        {
+            <div class="auth-bar">
+                <span class="muted">Signed in as <strong>@User.Identity.Name</strong></span>
+                <form method="post" action="/Logout" class="auth-logout">
+                    <button type="submit" class="btn-link">Sign out</button>
+                </form>
+            </div>
+        }
     </header>
     <main>
         @RenderBody()

@@ -113,26 +113,31 @@ IF EXISTS (
        AND Object_ID = Object_ID(N'dbo.RedTeamRuns')
 )
 BEGIN
-    -- Move each non-null ErrorMessage into ErrorMessages and stamp the FK.
-    DECLARE @runId INT, @msg NVARCHAR(MAX), @errId INT;
-    DECLARE migrate_err CURSOR LOCAL FAST_FORWARD FOR
-        SELECT Id, ErrorMessage
-          FROM dbo.RedTeamRuns
-         WHERE ErrorMessage IS NOT NULL
-           AND ErrorMessageId IS NULL;
-    OPEN migrate_err;
-    FETCH NEXT FROM migrate_err INTO @runId, @msg;
-    WHILE @@FETCH_STATUS = 0
-    BEGIN
-        INSERT INTO dbo.ErrorMessages (Message) VALUES (@msg);
-        SET @errId = CAST(SCOPE_IDENTITY() AS INT);
-        UPDATE dbo.RedTeamRuns SET ErrorMessageId = @errId WHERE Id = @runId;
+    -- The body has to go through sp_executesql because SQL Server's
+    -- parser compiles the IF body even when the guard is false, and
+    -- once the column has been dropped on a previous apply the bare
+    -- reference to ErrorMessage fails parse with "Invalid column name".
+    DECLARE @migrate NVARCHAR(MAX) = N'
+        DECLARE @runId INT, @msg NVARCHAR(MAX), @errId INT;
+        DECLARE migrate_err CURSOR LOCAL FAST_FORWARD FOR
+            SELECT Id, ErrorMessage
+              FROM dbo.RedTeamRuns
+             WHERE ErrorMessage IS NOT NULL
+               AND ErrorMessageId IS NULL;
+        OPEN migrate_err;
         FETCH NEXT FROM migrate_err INTO @runId, @msg;
-    END
-    CLOSE migrate_err;
-    DEALLOCATE migrate_err;
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            INSERT INTO dbo.ErrorMessages (Message) VALUES (@msg);
+            SET @errId = CAST(SCOPE_IDENTITY() AS INT);
+            UPDATE dbo.RedTeamRuns SET ErrorMessageId = @errId WHERE Id = @runId;
+            FETCH NEXT FROM migrate_err INTO @runId, @msg;
+        END
+        CLOSE migrate_err;
+        DEALLOCATE migrate_err;
 
-    ALTER TABLE dbo.RedTeamRuns DROP COLUMN ErrorMessage;
+        ALTER TABLE dbo.RedTeamRuns DROP COLUMN ErrorMessage;';
+    EXEC sp_executesql @migrate;
 END
 GO
 
@@ -189,5 +194,30 @@ VALUES (
     N'[{"intent_id": "basic_patient_data"}]',
     N'POC-1 baseline: basic_patient_data on patient pid 1; must return 200 with non-empty answer_blocks.',
     N'seed'
+);
+GO
+
+------------------------------------------------------------------
+-- 4. Users (for AgentForge.Web dashboard auth).
+--    Single tier, no roles -- the dashboard is a dev tool and every
+--    logged-in user has full access.  PasswordHash format is the
+--    "{iterations}.{salt-b64}.{hash-b64}" string produced by
+--    AgentForge.Web.PasswordHash (PBKDF2-HMAC-SHA256).
+------------------------------------------------------------------
+IF OBJECT_ID(N'dbo.Users', N'U') IS NULL
+CREATE TABLE dbo.Users (
+    Id            INT IDENTITY(1,1) PRIMARY KEY,
+    Username      NVARCHAR(64)  NOT NULL UNIQUE,
+    PasswordHash  NVARCHAR(256) NOT NULL,
+    CreatedAt     DATETIME2     NOT NULL DEFAULT SYSUTCDATETIME()
+);
+GO
+
+-- Seed the default admin/pass row.  Insert-only: if the row already
+-- exists (operator may have rotated the password) we do not overwrite.
+IF NOT EXISTS (SELECT 1 FROM dbo.Users WHERE Username = N'admin')
+INSERT INTO dbo.Users (Username, PasswordHash) VALUES (
+    N'admin',
+    N'100000.BSm9QfyUTSAWk68i4GHfbw==.gke7xwYJIpgMuRS8uSVqeyX+Bjx12EA4KTtzdpVpW5E='
 );
 GO

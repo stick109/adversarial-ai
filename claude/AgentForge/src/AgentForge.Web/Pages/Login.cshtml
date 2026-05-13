@@ -1,0 +1,24 @@
+@page
+@model LoginModel
+@{
+    ViewData["Title"] = "Sign in";
+}
+
+<h2>Sign in</h2>
+
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <p class="login-error">@Model.ErrorMessage</p>
+}
+
+<form method="post" class="login">
+    <label>
+        <span>Username</span>
+        <input name="Username" type="text" autocomplete="username" autofocus value="@Model.Username" />
+    </label>
+    <label>
+        <span>Password</span>
+        <input name="Password" type="password" autocomplete="current-password" />
+    </label>
+    <button type="submit">Sign in</button>
+</form>

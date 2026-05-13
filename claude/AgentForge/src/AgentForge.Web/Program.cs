@@ -1,7 +1,30 @@
 using AgentForge.Web;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddRazorPages();
+
+// Cookie auth.  Every page requires a signed-in user except Login and
+// Error -- see the AddRazorPages conventions below.  Seeded credential
+// is admin/pass (see db\001_schema.sql §4).
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath        = "/Login";
+        options.LogoutPath       = "/Logout";
+        options.AccessDeniedPath = "/Login";
+        options.ExpireTimeSpan   = TimeSpan.FromDays(1);
+        options.SlidingExpiration = true;
+    });
+builder.Services.AddAuthorization();
+
+builder.Services.AddRazorPages(options =>
+{
+    options.Conventions.AuthorizeFolder("/");
+    options.Conventions.AllowAnonymousToPage("/Login");
+    options.Conventions.AllowAnonymousToPage("/Error");
+});
 
 var app = builder.Build();
 
@@ -24,6 +47,17 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapRazorPages();
+
+// Logout: minimal endpoint so we don't need a dedicated Razor page.
+// Antiforgery isn't enforced on minimal endpoints -- the worst-case
+// CSRF impact is "tricking an operator into logging themselves out."
+app.MapPost("/Logout", async (HttpContext ctx) =>
+{
+    await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.Redirect("/Login");
+}).AllowAnonymous();
 
 app.Run();
