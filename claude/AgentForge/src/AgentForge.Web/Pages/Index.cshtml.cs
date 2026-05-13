@@ -81,6 +81,29 @@ public class IndexModel : PageModel
         return RedirectToPage("Run", new { id = runId });
     }
 
+    // Flip VariabilityToggles.IsEnabled for the row whose FieldPath
+    // matches.  Returns to the dashboard so the operator sees the new
+    // state inline; no flash message needed.
+    public IActionResult OnPostToggleVariability(string fieldPath)
+    {
+        if (string.IsNullOrWhiteSpace(fieldPath))
+        {
+            return RedirectToPage();
+        }
+
+        var connStr = Environment.GetEnvironmentVariable("AGENTFORGE_DB")
+            ?? throw new InvalidOperationException("AGENTFORGE_DB env var is not set");
+
+        using var db = new SqlConnection(connStr);
+        db.Execute(@"
+            UPDATE dbo.VariabilityToggles
+               SET IsEnabled = CASE WHEN IsEnabled = 1 THEN 0 ELSE 1 END
+             WHERE FieldPath = @fp",
+            new { fp = fieldPath });
+
+        return RedirectToPage();
+    }
+
     public sealed record ToggleRow(string FieldPath, int Priority, bool IsEnabled, string? DefaultJson, string Description);
     public sealed record TestRow(int Id, DateTime CreatedAt, string Category, string? GeneratorModel, string CreatedBy, int TurnCount, string? PatientId, string Description, int ExecutionCount);
     public sealed record ExecutionRow(int Id, int TestId, DateTime ExecutedAt, string Outcome, string? ErrorClass, long? StepBytes, int StepCount);

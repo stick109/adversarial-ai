@@ -69,3 +69,19 @@ form.login label > span { color: var(--fg-dim); font-size: 0.85rem; }
 form.login input { padding: 0.4rem 0.5rem; font: inherit; border: 1px solid var(--border); border-radius: 3px; background: var(--bg-card); }
 form.login button { align-self: flex-start; margin-top: 0.25rem; }
 .login-error { color: var(--bad); margin: 0.5rem 0; font-weight: 600; }
+
+form.toggle-cell { display: inline; margin: 0; }
+form.toggle-cell button {
+    min-width: 2.6rem;
+    padding: 1px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 3px;
+    text-transform: lowercase;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+form.toggle-cell button.toggle-on  { background: var(--ok);   color: #fff; }
+form.toggle-cell button.toggle-on:hover  { background: #14532d; }
+form.toggle-cell button.toggle-off { background: var(--code-bg); color: var(--fg-dim); border-color: var(--border); }
+form.toggle-cell button.toggle-off:hover { background: #e5e5e0; color: var(--fg); }

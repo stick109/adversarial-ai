@@ -122,7 +122,15 @@ else
         <tr>
             <td class="num">@v.Priority</td>
             <td class="code">@v.FieldPath</td>
-            <td>@(v.IsEnabled ? "yes" : "—")</td>
+            <td>
+                <form method="post" asp-page-handler="ToggleVariability" class="toggle-cell">
+                    <input type="hidden" name="fieldPath" value="@v.FieldPath" />
+                    <button type="submit" class="@(v.IsEnabled ? "toggle-on" : "toggle-off")"
+                            title="@(v.IsEnabled ? "Click to disable" : "Click to enable")">
+                        @(v.IsEnabled ? "on" : "off")
+                    </button>
+                </form>
+            </td>
             <td class="code">@v.DefaultJson</td>
             <td>@v.Description</td>
         </tr>
