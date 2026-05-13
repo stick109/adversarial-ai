@@ -84,8 +84,6 @@ docker compose up -d --build
 
 The Web app applies `db/001_schema.sql` automatically on startup
 (idempotent), so no separate `deploy-sql-schema.ps1` step is required.
-Set `AGENTFORGE_SKIP_SCHEMA=1` to disable the auto-apply if you'd
-rather own the schema externally.
 
 ### On Railway
 
