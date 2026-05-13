@@ -28,6 +28,10 @@ services:
     environment:
       SECURITY_ANALYZER_DB: "Server=security-analyzer-db,1433;Database=SecurityAnalyzer;User Id=sa;Password=AgentForge!2026;TrustServerCertificate=true"
       COPILOT_BASE_URL: "https://openemr-web-production.up.railway.app"
+      # Where the Web container reaches the Executor for the "Start
+      # Executor run" button on the Executions tab.  Sibling container
+      # DNS in the compose network; override per-deployment (Railway).
+      EXECUTOR_BASE_URL: "http://security-analyzer-executor:8080"
       # Required to enable the "Start RedTeam run" button.  Inherited
       # from the host shell or a .env file next to this compose file.
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"

@@ -102,6 +102,18 @@
 </section>
 
 <section id="tab-executions" class="tab-panel">
+    <h2>Run a new Executor probe</h2>
+
+    <form method="post" asp-page-handler="StartExecutorRun" class="row-actions">
+        <button type="submit">Start Executor run</button>
+        <span class="muted">— POSTs to <code>EXECUTOR_BASE_URL/runs</code> and redirects to the run page.</span>
+    </form>
+
+    @if (TempData["ExecutorError"] is string err)
+    {
+        <p style="color: var(--bad); font-weight: 600;">@err</p>
+    }
+
     <h2>Penetration test executions <span class="muted">(<code>PenetrationTestExecutions</code>, last 50)</span></h2>
 
     @* ExecutedAt is stored UTC; the cells emit a <time datetime="…Z"> with the

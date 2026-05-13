@@ -18,6 +18,11 @@ public class IndexModel : PageModel
 {
     private readonly ILogger<IndexModel> _logger;
 
+    // Static HttpClient: the "Start Executor run" handler posts one
+    // request per click; reuse the same client across page lifetimes
+    // to avoid socket-exhaustion from per-request `new HttpClient()`.
+    private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(15) };
+
     public IndexModel(ILogger<IndexModel> logger)
     {
         _logger = logger;
@@ -79,6 +84,41 @@ public class IndexModel : PageModel
 
         var runId = RedTeamRunner.Start(connStr, apiKey, _logger);
         return RedirectToPage("Run", new { id = runId });
+    }
+
+    // POSTs to the Executor's HTTP trigger (EXECUTOR_BASE_URL/runs),
+    // parses the returned executorRunId, and redirects to the run page
+    // so the operator sees the run progress live.  On HTTP failure we
+    // stash the error in TempData and bounce back to the Executions
+    // tab so it renders on the next OnGet.
+    public async Task<IActionResult> OnPostStartExecutorRunAsync()
+    {
+        var executorBase = (Environment.GetEnvironmentVariable("EXECUTOR_BASE_URL")
+            ?? "http://security-analyzer-executor:8080").TrimEnd('/');
+        var url = $"{executorBase}/runs";
+
+        int runId;
+        try
+        {
+            using var resp = await _http.PostAsync(url, content: null);
+            var body = await resp.Content.ReadAsStringAsync();
+            if (!resp.IsSuccessStatusCode)
+            {
+                throw new HttpRequestException(
+                    $"Executor returned HTTP {(int)resp.StatusCode}: {body}");
+            }
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            runId = doc.RootElement.GetProperty("executorRunId").GetInt32();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to trigger executor run at {Url}", url);
+            TempData["ExecutorError"] =
+                $"Could not start executor run at {url}: {ex.GetType().Name}: {ex.Message}";
+            return LocalRedirect("/#tab-executions");
+        }
+
+        return RedirectToPage("ExecutorRun", new { id = runId });
     }
 
     // Flip VariabilityToggles.IsEnabled for the row whose FieldPath

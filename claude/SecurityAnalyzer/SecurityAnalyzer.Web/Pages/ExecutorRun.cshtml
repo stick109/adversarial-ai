@@ -1,0 +1,81 @@
+@page "/ExecutorRun/{id:int}"
+@model ExecutorRunModel
+@{
+    ViewData["Title"] = $"Executor run #{Model.Run!.Id}";
+
+    string Duration()
+    {
+        var end = Model.Run.FinishedAt ?? DateTime.UtcNow;
+        return $"{(end - Model.Run.StartedAt).TotalSeconds:0.0} s";
+    }
+}
+
+<p><a href="/#tab-executions">&larr; Dashboard</a></p>
+
+<h2>Executor run #@Model.Run!.Id</h2>
+
+<div class="panel">
+    <dl class="kv">
+        <dt>Status</dt><dd class="status-@Model.Run.Status">@Model.Run.Status</dd>
+        <dt>Triggered by</dt><dd>@Model.Run.TriggeredBy</dd>
+        <dt>Started</dt>
+        <dd class="code">
+            <time class="local-time" datetime="@Model.Run.StartedAt.ToString("yyyy-MM-ddTHH:mm:ssZ")">@Model.Run.StartedAt.ToString("yyyy-MM-dd HH:mm:ss")</time>
+        </dd>
+        <dt>Finished</dt>
+        <dd class="code">
+            @if (Model.Run.FinishedAt is DateTime fin)
+            {
+                <time class="local-time" datetime="@fin.ToString("yyyy-MM-ddTHH:mm:ssZ")">@fin.ToString("yyyy-MM-dd HH:mm:ss")</time>
+            }
+            else
+            {
+                <text>—</text>
+            }
+        </dd>
+        <dt>Duration</dt><dd>@Duration()</dd>
+        <dt>Exit code</dt><dd>@(Model.Run.ExitCode?.ToString() ?? "—")</dd>
+        <dt>Execution Id</dt><dd>@(Model.Run.PenetrationTestExecutionId?.ToString() ?? "—")</dd>
+    </dl>
+    @if (Model.Run.Status == "running")
+    {
+        <p class="muted">Page auto-refreshes every 2 seconds while the run is in flight.</p>
+    }
+    @if (Model.Run.ErrorMessageId is int errId)
+    {
+        <h3>Error</h3>
+        <p><a href="/ErrorMessage/@errId">show error message #@errId</a></p>
+    }
+</div>
+
+@if (Model.Execution is not null)
+{
+    <h2>Penetration test execution</h2>
+
+    <div class="panel">
+        <dl class="kv">
+            <dt>Id</dt><dd>@Model.Execution.Id</dd>
+            <dt>Test Id</dt><dd>@Model.Execution.TestId</dd>
+            <dt>Outcome</dt><dd class="status-@Model.Execution.Outcome">@Model.Execution.Outcome</dd>
+            <dt>Error class</dt><dd>@(Model.Execution.ErrorClass ?? "—")</dd>
+            <dt>Steps</dt><dd>@Model.Execution.StepCount</dd>
+            <dt>Bytes</dt><dd>@(Model.Execution.StepBytes?.ToString("N0") ?? "—")</dd>
+            <dt>Executed</dt>
+            <dd class="code">
+                <time class="local-time" datetime="@Model.Execution.ExecutedAt.ToString("yyyy-MM-ddTHH:mm:ssZ")">@Model.Execution.ExecutedAt.ToString("yyyy-MM-dd HH:mm:ss")</time>
+            </dd>
+        </dl>
+    </div>
+}
+
+<script>
+    (function () {
+        var pad = function (n) { return String(n).padStart(2, '0'); };
+        document.querySelectorAll('time.local-time[datetime]').forEach(function (t) {
+            var d = new Date(t.getAttribute('datetime'));
+            if (isNaN(d.getTime())) return;
+            t.textContent = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+                + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+        });
+    })();
+</script>
