@@ -1,76 +1,54 @@
-# Trigger one immediate run on the SecurityAnalyzer.Executor container.
+# Invoke PenetrationHarness.RunOnce once from the command line.
 #
-# Posts to /runs on the running executor service (default localhost:5081
-# via docker-compose).  The executor inserts an ExecutorRuns row in
-# 'running' state, runs PenetrationHarness.RunOnce on a worker thread,
-# then updates the row with FinishedAt/Status/ExitCode and a link to the
-# PenetrationTestExecutions row it produced.  The HTTP call itself
-# returns 202 immediately; this script then polls ExecutorRuns until the
-# run completes (or hits the timeout) and reports the final status.
+# Calls `dotnet run --project SecurityAnalyzer.Executor -- --once`, which
+# bypasses the executor's web host + scheduler and invokes the
+# PenetrationHarness static method directly in-process.  The harness
+# picks the oldest unrun penetration test, exercises it against the
+# live Co-Pilot, and writes one row to PenetrationTestExecutions.  No
+# ExecutorRuns row is written (the scheduler + POST /runs path are the
+# ones that track lifecycle).
 #
 # Usage:
 #   .\run-executor.ps1
-#   .\run-executor.ps1 -ExecutorBaseUrl 'http://localhost:5081'
-#   .\run-executor.ps1 -SecurityAnalyzerDb 'Server=...;Database=SecurityAnalyzer;...' -TimeoutSeconds 300
+#   .\run-executor.ps1 -CopilotBaseUrl 'https://my-deploy.example.com'
+#   .\run-executor.ps1 -SecurityAnalyzerDb 'Server=...;Database=SecurityAnalyzer;...'
 
 [CmdletBinding()]
 param(
-    [string]$ExecutorBaseUrl    = 'http://localhost:5081',
     [string]$SecurityAnalyzerDb = 'Server=localhost,14330;Database=SecurityAnalyzer;User Id=sa;Password=AgentForge!2026;TrustServerCertificate=true',
-    [int]   $TimeoutSeconds     = 180
+    [string]$CopilotBaseUrl     = 'https://openemr-web-production.up.railway.app'
 )
 
-Write-Host "==> POST $ExecutorBaseUrl/runs" -ForegroundColor Cyan
+# Note: we don't set $ErrorActionPreference='Stop' here.  In Windows
+# PowerShell 5.1, native commands that emit anything to stderr can get
+# wrapped in a NativeCommandError and trip the global Stop.  We check
+# $LASTEXITCODE explicitly after the dotnet call instead.
 
-try {
-    $resp = Invoke-RestMethod -Uri "$ExecutorBaseUrl/runs" -Method Post -UseBasicParsing
-} catch {
-    Write-Error "POST /runs failed: $_"
+$scriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
+$executorProj = Join-Path $scriptDir 'SecurityAnalyzer.Executor'
+
+if (-not (Test-Path $executorProj)) {
+    Write-Error "Executor project not found: $executorProj"
     exit 1
 }
 
-$runId = $resp.executorRunId
-if (-not $runId) {
-    Write-Error "Executor did not return an executorRunId; got: $($resp | ConvertTo-Json -Compress)"
-    exit 1
+Write-Host "==> invoking PenetrationHarness.RunOnce (one run) via SecurityAnalyzer.Executor --once" -ForegroundColor Cyan
+Write-Host "    SECURITY_ANALYZER_DB = $SecurityAnalyzerDb"
+Write-Host "    COPILOT_BASE_URL     = $CopilotBaseUrl"
+
+$env:SECURITY_ANALYZER_DB = $SecurityAnalyzerDb
+$env:COPILOT_BASE_URL     = $CopilotBaseUrl
+
+# Do NOT pipe `2>&1` here -- Windows PowerShell 5.1 wraps native stderr
+# lines into NativeCommandError records and trips $? even on a clean
+# exit 0.  Let dotnet write straight to the console.
+& dotnet run --project $executorProj -- --once
+$exit = $LASTEXITCODE
+
+if ($exit -eq 0) {
+    Write-Host "==> harness exited 0" -ForegroundColor Green
+} else {
+    Write-Host "==> harness exited $exit" -ForegroundColor Yellow
 }
 
-Write-Host "    ExecutorRuns.Id = $runId (polling for completion)" -ForegroundColor Cyan
-
-Add-Type -AssemblyName System.Data
-$deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-$status   = $null
-$exitCode = $null
-$execId   = $null
-
-while ((Get-Date) -lt $deadline) {
-    try {
-        $conn = New-Object System.Data.SqlClient.SqlConnection $SecurityAnalyzerDb
-        $conn.Open()
-        $cmd = $conn.CreateCommand()
-        $cmd.CommandText = "SELECT Status, ExitCode, PenetrationTestExecutionId FROM dbo.ExecutorRuns WHERE Id = $runId"
-        $reader = $cmd.ExecuteReader()
-        if ($reader.Read()) {
-            $status   = if ($reader.IsDBNull(0)) { $null } else { $reader.GetString(0) }
-            $exitCode = if ($reader.IsDBNull(1)) { $null } else { $reader.GetInt32(1) }
-            $execId   = if ($reader.IsDBNull(2)) { $null } else { $reader.GetInt32(2) }
-        }
-        $reader.Close()
-        $conn.Close()
-    } catch {
-        Write-Warning "DB poll failed: $_"
-    }
-
-    if ($status -and $status -ne 'running') { break }
-    Start-Sleep -Seconds 2
-}
-
-if (-not $status -or $status -eq 'running') {
-    Write-Host "==> run $runId did not finish within $TimeoutSeconds s (still '$status')" -ForegroundColor Yellow
-    exit 2
-}
-
-$color = if ($status -eq 'ok') { 'Green' } else { 'Yellow' }
-Write-Host "==> run $runId finished: status=$status, exitCode=$exitCode, PenetrationTestExecutions.Id=$execId" -ForegroundColor $color
-
-if ($null -eq $exitCode) { exit 0 } else { exit $exitCode }
+exit $exit

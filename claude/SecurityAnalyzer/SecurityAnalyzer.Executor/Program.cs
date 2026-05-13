@@ -1,5 +1,18 @@
 using SecurityAnalyzer.Executor;
 
+// --once: run PenetrationHarness.RunOnce against the configured DB +
+// Co-Pilot exactly once, then exit with its status code.  Skips the
+// web host, the scheduler, and the ExecutorRuns wrapper -- this is the
+// in-process equivalent of the old `dotnet run --project SecurityAnalyzer.Harness`.
+if (args.Length > 0 && args[0] == "--once")
+{
+    return PenetrationHarness.RunOnce(
+        Environment.GetEnvironmentVariable("SECURITY_ANALYZER_DB")
+            ?? throw new InvalidOperationException("SECURITY_ANALYZER_DB env var is not set"),
+        Environment.GetEnvironmentVariable("COPILOT_BASE_URL")
+            ?? "https://openemr-web-production.up.railway.app");
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Surface SECURITY_ANALYZER_* environment variables through IConfiguration so
@@ -36,3 +49,4 @@ app.MapPost("/runs", (ILoggerFactory loggerFactory) =>
 });
 
 app.Run();
+return 0;
