@@ -46,8 +46,8 @@
     {
         <table>
             <thead><tr>
-                <th>Id</th><th>StartedAt (UTC)</th><th>FinishedAt (UTC)</th><th>Status</th>
-                <th>Exit</th><th>ResultTestId</th><th>Error</th>
+                <th class="num">Id</th><th>StartedAt (UTC)</th><th>FinishedAt (UTC)</th><th>Status</th>
+                <th class="num">Exit</th><th class="num">ResultTestId</th><th>Error</th>
             </tr></thead>
             <tbody>
             @foreach (var r in Model.Runs)
@@ -79,8 +79,8 @@
 
     <table>
         <thead><tr>
-            <th>Id</th><th>CreatedAt (UTC)</th><th>Category</th><th>Model</th><th>By</th>
-            <th>PID</th><th>Turns</th><th>Execs</th><th>Description</th>
+            <th class="num">Id</th><th>CreatedAt (UTC)</th><th>Category</th><th>Model</th><th>By</th>
+            <th class="num">PID</th><th class="num">Turns</th><th class="num">Execs</th><th>Description</th>
         </tr></thead>
         <tbody>
         @foreach (var t in Model.Tests)
@@ -106,7 +106,7 @@
 
     <table>
         <thead><tr>
-            <th>Id</th><th>TestId</th><th>ExecutedAt (UTC)</th><th>Outcome</th><th>Steps</th><th>Bytes</th><th>Error</th>
+            <th class="num">Id</th><th class="num">TestId</th><th>ExecutedAt (UTC)</th><th>Outcome</th><th class="num">Steps</th><th class="num">Bytes</th><th>Error</th>
         </tr></thead>
         <tbody>
         @foreach (var e in Model.Executions)
@@ -130,7 +130,7 @@
 
     <table>
         <thead><tr>
-            <th>Pri</th><th>FieldPath</th><th>Enabled?</th><th>Default</th><th>Description</th>
+            <th class="num">Pri</th><th>FieldPath</th><th>Enabled?</th><th>Default</th><th>Description</th>
         </tr></thead>
         <tbody>
         @foreach (var v in Model.Toggles)

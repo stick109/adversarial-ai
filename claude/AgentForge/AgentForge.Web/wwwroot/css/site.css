@@ -39,7 +39,7 @@ table { border-collapse: collapse; width: 100%; background: var(--bg-card); font
 th, td { padding: 0.4rem 0.6rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { background: #f3f3f0; font-weight: 600; }
 tr:last-child td { border-bottom: none; }
-td.num { text-align: right; font-variant-numeric: tabular-nums; }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 td.code, code { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 0.82rem; background: var(--code-bg); padding: 1px 4px; border-radius: 3px; }
 td.code { background: transparent; padding-left: 0.6rem; }
 
