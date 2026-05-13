@@ -1,10 +1,10 @@
 # Idempotent schema deployer for AgentForge.
 #
-# Brings the agentforge-db container up if it isn't already, waits for
-# SQL Server to accept connections, then applies db\001_schema.sql via
-# sqlcmd.  Both operations are safe to re-run -- compose is a no-op when
-# the container is already healthy, and the schema script uses IF NOT
-# EXISTS guards plus a MERGE seed.
+# Brings the security-analyzer-db container up if it isn't already,
+# waits for SQL Server to accept connections, then applies
+# db\001_schema.sql via sqlcmd.  Both operations are safe to re-run --
+# compose is a no-op when the container is already healthy, and the
+# schema script uses IF NOT EXISTS guards plus a MERGE seed.
 #
 # Requirements: Docker Desktop, sqlcmd on PATH.
 
@@ -30,8 +30,8 @@ if (-not (Test-Path $schemaFile)) {
     exit 1
 }
 
-Write-Host "==> docker compose up -d agentforge-db" -ForegroundColor Cyan
-& docker compose -f $composeFile up -d agentforge-db 2>&1 | ForEach-Object { Write-Host $_ }
+Write-Host "==> docker compose up -d security-analyzer-db" -ForegroundColor Cyan
+& docker compose -f $composeFile up -d security-analyzer-db 2>&1 | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0) {
     Write-Error "docker compose up failed (exit $LASTEXITCODE)"
     exit 1
