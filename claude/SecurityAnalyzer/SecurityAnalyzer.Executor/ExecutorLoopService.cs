@@ -10,6 +10,12 @@ namespace SecurityAnalyzer.Executor;
 // On startup the service waits for the dbo.Parameters table to exist
 // (the Web container applies the schema) and then runs immediately;
 // each subsequent iteration sleeps Value(executor-loop-minutes) minutes.
+//
+// Each tick runs PenetrationHarness.RunOnce on a thread-pool task so
+// long harness runs don't push the next tick out -- the timer keeps
+// ticking on schedule and concurrent runs are tolerated (the test
+// picker skips in-flight rows naturally because they sort last by
+// ExecutedAt).
 public sealed class ExecutorLoopService : BackgroundService
 {
     private const string IntervalKey = "executor-loop-minutes";
@@ -38,15 +44,26 @@ public sealed class ExecutorLoopService : BackgroundService
         {
             try
             {
-                ExecutorRunner.Start(_connectionString, _copilotBaseUrl, "schedule", _logger);
+                _ = Task.Run(() =>
+                {
+                    try
+                    {
+                        var exit = PenetrationHarness.RunOnce(
+                            _connectionString, _copilotBaseUrl, triggeredBy: "schedule");
+                        if (exit != 0)
+                        {
+                            _logger.LogWarning("Scheduled harness run exited {Exit}", exit);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Scheduled harness run threw outside RunOnce");
+                    }
+                }, stoppingToken);
             }
             catch (Exception ex)
             {
-                // ExecutorRunner.Start only does a single INSERT before
-                // backgrounding the harness work; an exception here means
-                // the DB rejected the insert.  Log + keep looping so a
-                // transient SQL blip doesn't kill the schedule.
-                _logger.LogError(ex, "Failed to start scheduled executor run; will retry next tick");
+                _logger.LogError(ex, "Failed to schedule harness run; will retry next tick");
             }
 
             var interval = ReadIntervalOrFallback();

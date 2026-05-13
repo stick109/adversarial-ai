@@ -162,15 +162,17 @@ flight (via meta refresh — no JS), then renders the inserted
   ```
 
 - **HTTP** — `POST /runs` returns `202 Accepted` with body
-  `{"executorRunId":N}` immediately, then runs the harness on a
+  `{"executionId":N}` immediately, then runs the harness on a
   thread-pool task. Useful for one-off triggers between schedule ticks.
 
-Each invocation inserts one row into `dbo.ExecutorRuns` with
-`Status='running'` and `TriggeredBy='schedule'` / `'http'`. When the
-background task finishes it updates the row with `FinishedAt`,
-`Status='ok'`/`'failed'`, `ExitCode`, the FK to the
-`dbo.PenetrationTestExecutions` row it produced, and (on exception)
-an FK to `dbo.ErrorMessages`.
+Each invocation inserts exactly one row into
+`dbo.PenetrationTestExecutions` up front with `Outcome='running'`,
+`TriggeredBy='schedule'` / `'http'` / `'direct'`, and `StartedAt` set.
+When the harness finishes it updates the same row with `FinishedAt`,
+`Outcome='ok'`/`'http_error'`/`'exception'`, `ExitCode`,
+`StepResultsJson`, `ErrorClass`, and (on exception) an FK to
+`dbo.ErrorMessages` via `ErrorMessageId`. There is no separate
+`ExecutorRuns` table — the lifecycle and the test attempt are one row.
 
 Trigger an immediate run:
 

@@ -8,9 +8,17 @@ using Microsoft.Data.SqlClient;
 
 namespace SecurityAnalyzer.Executor;
 
-// One invocation -> pick the next test, exercise it against the live
-// Clinical Co-Pilot, record one row in PenetrationTestExecutions.
-// Plan v1 §5.  HTTP wire mirrors POC-1/poc.py.
+// One invocation -> pick the next test, INSERT a PenetrationTestExecutions
+// row up front with Outcome='running', exercise the test against the
+// live Clinical Co-Pilot, then UPDATE the row with the final outcome,
+// step results, and timing.  Errors (any thrown exception) also get a
+// full stack-trace row in dbo.ErrorMessages, linked via ErrorMessageId.
+//
+// Plan v1 §5 (test selection + bootstrap + turn loop).  HTTP wire
+// mirrors POC-1/poc.py.  Lifecycle bookkeeping (StartedAt/FinishedAt/
+// TriggeredBy/ExitCode/ErrorMessageId) was previously held in a
+// separate ExecutorRuns table; db/019-merge-executor-runs.sql folded
+// those columns onto PenetrationTestExecutions.
 public static class PenetrationHarness
 {
     // Match the data-api-csrf-token attribute on the chart page; POC-1
@@ -23,23 +31,21 @@ public static class PenetrationHarness
     // can't blow up StepResultsJson (NVARCHAR(MAX) but we want it readable).
     private const int MaxBodyChars = 200_000;
 
-    public static int RunOnce(string connectionString, string copilotBaseUrl)
+    // Pick the oldest unrun test, INSERT a PTE row with Outcome='running'
+    // and the supplied TriggeredBy ('schedule' | 'http' | 'direct'), and
+    // return its Id.  Returns null if the test catalog is empty.  Fast
+    // (one SELECT + one INSERT); HTTP callers can return this Id
+    // synchronously and let Continue(...) run on a thread-pool task.
+    public static int? Start(string connectionString, string triggeredBy)
     {
-        copilotBaseUrl = copilotBaseUrl.TrimEnd('/');
-
         using var db = new SqlConnection(connectionString);
         db.Open();
 
-        // 1. Load toggle defaults.
-        var toggles = db.Query<Toggle>(@"
-            SELECT FieldPath, IsEnabled, DefaultJson
-              FROM dbo.VariabilityToggles").AsList();
-
-        var defaults = toggles.ToDictionary(t => t.FieldPath, t => t.DefaultJson, StringComparer.Ordinal);
-
-        // 2. Pick the next test (never-run sorts first, then oldest last-run).
-        var test = db.QueryFirstOrDefault<PenTestRow>(@"
-            SELECT TOP 1 t.Id, t.Category, t.Bootstrap, t.Turns, t.Description
+        // Skip in-flight rows (Outcome = 'running'): the OUTER APPLY
+        // picks up a NULL LastRun for never-touched tests, which sorts
+        // first, so the picker still works for both cold and warm DBs.
+        var testId = db.QueryFirstOrDefault<int?>(@"
+            SELECT TOP 1 t.Id
               FROM dbo.PenetrationTests t
               OUTER APPLY (
                   SELECT MAX(e.ExecutedAt) AS LastRun
@@ -48,26 +54,60 @@ public static class PenetrationHarness
               ) lr
              ORDER BY lr.LastRun ASC;");
 
+        if (testId is null) return null;
+
+        return db.ExecuteScalar<int>(@"
+            INSERT INTO dbo.PenetrationTestExecutions
+                (TestId, StartedAt, ExecutedAt, TriggeredBy, Outcome)
+            OUTPUT INSERTED.Id
+            VALUES (@TestId, SYSUTCDATETIME(), SYSUTCDATETIME(), @TriggeredBy, N'running');",
+            new { TestId = testId.Value, TriggeredBy = triggeredBy });
+    }
+
+    // Run the test referenced by the given execution row.  Performs the
+    // bootstrap + turn loop, then UPDATEs the row with FinishedAt,
+    // Outcome ('ok' | 'http_error' | 'exception'), StepResultsJson,
+    // ErrorClass, ExitCode, ErrorMessageId, and ExecutedAt (kept aligned
+    // with FinishedAt so the test-picker query orders by activity).
+    // Returns the exit code (0 = ok, 1 = anything else).
+    public static int Continue(string connectionString, string copilotBaseUrl, int executionId)
+    {
+        copilotBaseUrl = copilotBaseUrl.TrimEnd('/');
+
+        using var db = new SqlConnection(connectionString);
+        db.Open();
+
+        var test = db.QueryFirstOrDefault<PenTestRow>(@"
+            SELECT t.Id, t.Category, t.Bootstrap, t.Turns, t.Description
+              FROM dbo.PenetrationTestExecutions e
+              JOIN dbo.PenetrationTests          t ON t.Id = e.TestId
+             WHERE e.Id = @Id;", new { Id = executionId });
+
         if (test is null)
         {
-            Console.WriteLine("[Harness] no tests found; exiting 0");
-            return 0;
+            Console.Error.WriteLine($"[Harness] no test row found for execution {executionId}");
+            return 1;
         }
 
-        Console.WriteLine($"[Harness] picked PenetrationTests.Id = {test.Id} ({test.Category})");
+        var toggles = db.Query<Toggle>(@"
+            SELECT FieldPath, IsEnabled, DefaultJson
+              FROM dbo.VariabilityToggles").AsList();
+        var defaults = toggles.ToDictionary(t => t.FieldPath, t => t.DefaultJson, StringComparer.Ordinal);
+
+        Console.WriteLine(
+            $"[Harness] picked PenetrationTests.Id = {test.Id} ({test.Category}) for execution {executionId}");
         Console.WriteLine($"[Harness] description: {test.Description}");
 
         var steps = new List<StepResult>();
         string outcome;
         string? errorClass = null;
+        Exception? caughtException = null;
 
         try
         {
-            // Merge bootstrap defaults with per-test overrides.
             var bootstrap = MergeBootstrap(test.Bootstrap, defaults);
             var turns = MergeTurns(test.Turns, defaults);
 
-            // 3. Bootstrap clinician session.
             var cookies = new CookieContainer();
             using var handler = new HttpClientHandler
             {
@@ -92,7 +132,6 @@ public static class PenetrationHarness
             }
             else
             {
-                // 4. Turn loop.
                 outcome = RunTurns(http, copilotBaseUrl, csrfToken!, bootstrap, turns, steps);
             }
         }
@@ -100,19 +139,74 @@ public static class PenetrationHarness
         {
             outcome = "exception";
             errorClass = ex.GetType().FullName;
+            caughtException = ex;
             Console.Error.WriteLine($"[Harness] {errorClass}: {ex.Message}");
         }
 
-        // 5. Record one execution row.
-        var stepsJson = JsonSerializer.Serialize(steps, new JsonSerializerOptions { WriteIndented = false });
-        var execId = db.ExecuteScalar<int>(@"
-            INSERT INTO dbo.PenetrationTestExecutions (TestId, Outcome, StepResultsJson, ErrorClass)
-            OUTPUT INSERTED.Id
-            VALUES (@TestId, @Outcome, @StepResultsJson, @ErrorClass)",
-            new { TestId = test.Id, Outcome = outcome, StepResultsJson = stepsJson, ErrorClass = errorClass });
+        // If we caught an exception, persist the full stack trace in
+        // dbo.ErrorMessages and link it from the PTE row.  Failure to
+        // persist the error itself is logged but doesn't change the
+        // outcome we're about to record.
+        int? errorMessageId = null;
+        if (caughtException is not null)
+        {
+            try
+            {
+                errorMessageId = db.ExecuteScalar<int>(@"
+                    INSERT INTO dbo.ErrorMessages (Message)
+                    OUTPUT INSERTED.Id
+                    VALUES (@Message);",
+                    new
+                    {
+                        Message = $"{caughtException.GetType().FullName}: {caughtException.Message}\n\n{caughtException.StackTrace}",
+                    });
+            }
+            catch (Exception persistEx)
+            {
+                Console.Error.WriteLine($"[Harness] failed to persist error message: {persistEx.Message}");
+            }
+        }
 
-        Console.WriteLine($"[Harness] inserted PenetrationTestExecutions.Id = {execId} (outcome = {outcome})");
-        return outcome == "exception" ? 1 : 0;
+        var exitCode = outcome == "ok" ? 0 : 1;
+        var stepsJson = JsonSerializer.Serialize(steps, new JsonSerializerOptions { WriteIndented = false });
+
+        db.Execute(@"
+            UPDATE dbo.PenetrationTestExecutions
+               SET Outcome         = @Outcome,
+                   StepResultsJson = @StepResultsJson,
+                   ErrorClass      = @ErrorClass,
+                   FinishedAt      = SYSUTCDATETIME(),
+                   ExecutedAt      = SYSUTCDATETIME(),
+                   ExitCode        = @ExitCode,
+                   ErrorMessageId  = @ErrorMessageId
+             WHERE Id = @Id;",
+            new
+            {
+                Id              = executionId,
+                Outcome         = outcome,
+                StepResultsJson = stepsJson,
+                ErrorClass      = errorClass,
+                ExitCode        = exitCode,
+                ErrorMessageId  = errorMessageId,
+            });
+
+        Console.WriteLine(
+            $"[Harness] finished PenetrationTestExecutions.Id = {executionId} (outcome = {outcome})");
+        return exitCode;
+    }
+
+    // Convenience for callers that want a one-shot synchronous run.
+    // Equivalent to Start(...) + Continue(...) wired together; returns
+    // 0 if there were no tests to run.
+    public static int RunOnce(string connectionString, string copilotBaseUrl, string triggeredBy)
+    {
+        var id = Start(connectionString, triggeredBy);
+        if (id is null)
+        {
+            Console.WriteLine("[Harness] no tests found; exiting 0");
+            return 0;
+        }
+        return Continue(connectionString, copilotBaseUrl, id.Value);
     }
 
     // ------------------------------------------------------------------

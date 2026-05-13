@@ -60,7 +60,8 @@ public class IndexModel : PageModel
              ORDER BY p.Id DESC").AsList();
 
         Executions = db.Query<ExecutionRow>(@"
-            SELECT TOP 50 e.Id, e.TestId, e.ExecutedAt, e.Outcome, e.ErrorClass,
+            SELECT TOP 50 e.Id, e.TestId, e.StartedAt, e.FinishedAt, e.TriggeredBy,
+                          e.Outcome, e.ExitCode, e.ErrorClass,
                           DATALENGTH(e.StepResultsJson) AS StepBytes,
                           (SELECT COUNT(*) FROM OPENJSON(e.StepResultsJson)) AS StepCount
               FROM dbo.PenetrationTestExecutions e
@@ -87,17 +88,18 @@ public class IndexModel : PageModel
     }
 
     // POSTs to the Executor's HTTP trigger (EXECUTOR_BASE_URL/runs),
-    // parses the returned executorRunId, and redirects to the run page
-    // so the operator sees the run progress live.  On HTTP failure we
-    // stash the error in TempData and bounce back to the Executions
-    // tab so it renders on the next OnGet.
+    // parses the returned executionId (the dbo.PenetrationTestExecutions
+    // row the harness inserted in 'running' state), and redirects to the
+    // execution detail page so the operator sees the run progress live.
+    // On HTTP failure we stash the error in TempData and bounce back to
+    // the Executions tab so it renders on the next OnGet.
     public async Task<IActionResult> OnPostStartExecutorRunAsync()
     {
         var executorBase = (Environment.GetEnvironmentVariable("EXECUTOR_BASE_URL")
             ?? "http://security-analyzer-executor:8080").TrimEnd('/');
         var url = $"{executorBase}/runs";
 
-        int runId;
+        int executionId;
         try
         {
             using var resp = await _http.PostAsync(url, content: null);
@@ -108,7 +110,7 @@ public class IndexModel : PageModel
                     $"Executor returned HTTP {(int)resp.StatusCode}: {body}");
             }
             using var doc = System.Text.Json.JsonDocument.Parse(body);
-            runId = doc.RootElement.GetProperty("executorRunId").GetInt32();
+            executionId = doc.RootElement.GetProperty("executionId").GetInt32();
         }
         catch (Exception ex)
         {
@@ -118,7 +120,7 @@ public class IndexModel : PageModel
             return LocalRedirect("/#tab-executions");
         }
 
-        return RedirectToPage("ExecutorRun", new { id = runId });
+        return RedirectToPage("Execution", new { id = executionId });
     }
 
     // Flip VariabilityToggles.IsEnabled for the row whose FieldPath
@@ -147,6 +149,6 @@ public class IndexModel : PageModel
 
     public sealed record ToggleRow(string FieldPath, int Priority, bool IsEnabled, string? DefaultJson, string Description);
     public sealed record TestRow(int Id, DateTime CreatedAt, string Category, string? GeneratorModel, string CreatedBy, int TurnCount, string? PatientId, string Description, int ExecutionCount);
-    public sealed record ExecutionRow(int Id, int TestId, DateTime ExecutedAt, string Outcome, string? ErrorClass, long? StepBytes, int StepCount);
+    public sealed record ExecutionRow(int Id, int TestId, DateTime StartedAt, DateTime? FinishedAt, string TriggeredBy, string Outcome, int? ExitCode, string? ErrorClass, long? StepBytes, int StepCount);
     public sealed record RunRow(int Id, DateTime StartedAt, DateTime? FinishedAt, string Status, int? ExitCode, int? ResultTestId, int? ErrorMessageId);
 }

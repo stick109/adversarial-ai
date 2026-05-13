@@ -41,9 +41,10 @@ services:
   # Runs the Harness on a timer (configured via dbo.Parameters key
   # 'executor-loop-minutes') and exposes POST /runs to trigger an
   # immediate run.  Web is listed in depends_on so the schema (which
-  # creates dbo.Parameters and dbo.ExecutorRuns) is applied first;
-  # the Executor additionally polls until dbo.Parameters is readable
-  # before starting its loop.
+  # creates dbo.Parameters and adds the lifecycle columns to
+  # dbo.PenetrationTestExecutions) is applied first; the Executor
+  # additionally polls until dbo.Parameters is readable before
+  # starting its loop.
   security-analyzer-executor:
     build:
       context: .

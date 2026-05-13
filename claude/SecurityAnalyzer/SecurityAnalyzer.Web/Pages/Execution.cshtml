@@ -1,0 +1,64 @@
+@page "/Execution/{id:int}"
+@model ExecutionModel
+@{
+    ViewData["Title"] = $"Execution #{Model.Row!.Id}";
+
+    string Duration()
+    {
+        var end = Model.Row.FinishedAt ?? DateTime.UtcNow;
+        return $"{(end - Model.Row.StartedAt).TotalSeconds:0.0} s";
+    }
+}
+
+<p><a href="/#tab-executions">&larr; Dashboard</a></p>
+
+<h2>Penetration test execution #@Model.Row!.Id</h2>
+
+<div class="panel">
+    <dl class="kv">
+        <dt>Outcome</dt><dd class="outcome-@Model.Row.Outcome">@Model.Row.Outcome</dd>
+        <dt>Triggered by</dt><dd>@Model.Row.TriggeredBy</dd>
+        <dt>Started</dt>
+        <dd class="code">
+            <time class="local-time" datetime="@Model.Row.StartedAt.ToString("yyyy-MM-ddTHH:mm:ssZ")">@Model.Row.StartedAt.ToString("yyyy-MM-dd HH:mm:ss")</time>
+        </dd>
+        <dt>Finished</dt>
+        <dd class="code">
+            @if (Model.Row.FinishedAt is DateTime fin)
+            {
+                <time class="local-time" datetime="@fin.ToString("yyyy-MM-ddTHH:mm:ssZ")">@fin.ToString("yyyy-MM-dd HH:mm:ss")</time>
+            }
+            else
+            {
+                <text>—</text>
+            }
+        </dd>
+        <dt>Duration</dt><dd>@Duration()</dd>
+        <dt>Exit code</dt><dd>@(Model.Row.ExitCode?.ToString() ?? "—")</dd>
+        <dt>Test Id</dt><dd>@Model.Row.TestId</dd>
+        <dt>Error class</dt><dd>@(Model.Row.ErrorClass ?? "—")</dd>
+        <dt>Steps</dt><dd>@Model.Row.StepCount</dd>
+        <dt>Bytes</dt><dd>@(Model.Row.StepBytes?.ToString("N0") ?? "—")</dd>
+    </dl>
+    @if (Model.Row.Outcome == "running")
+    {
+        <p class="muted">Page auto-refreshes every 2 seconds while the run is in flight.</p>
+    }
+    @if (Model.Row.ErrorMessageId is int errId)
+    {
+        <h3>Error</h3>
+        <p><a href="/ErrorMessage/@errId">show error message #@errId</a></p>
+    }
+</div>
+
+<script>
+    (function () {
+        var pad = function (n) { return String(n).padStart(2, '0'); };
+        document.querySelectorAll('time.local-time[datetime]').forEach(function (t) {
+            var d = new Date(t.getAttribute('datetime'));
+            if (isNaN(d.getTime())) return;
+            t.textContent = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+                + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+        });
+    })();
+</script>
