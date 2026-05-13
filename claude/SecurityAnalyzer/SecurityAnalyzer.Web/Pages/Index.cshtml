@@ -104,9 +104,12 @@
 <section id="tab-executions" class="tab-panel">
     <h2>Penetration test executions <span class="muted">(<code>PenetrationTestExecutions</code>, last 50)</span></h2>
 
+    @* ExecutedAt is stored UTC; the cells emit a <time datetime="…Z"> with the
+       UTC string as a no-JS fallback, and the inline script below replaces the
+       text with the browser's local time. Header label flips in the same pass. *@
     <table>
         <thead><tr>
-            <th class="num">Id</th><th class="num">TestId</th><th>ExecutedAt (UTC)</th><th>Outcome</th><th class="num">Steps</th><th class="num">Bytes</th><th>Error</th>
+            <th class="num">Id</th><th class="num">TestId</th><th data-tz-label>ExecutedAt (UTC)</th><th>Outcome</th><th class="num">Steps</th><th class="num">Bytes</th><th>Error</th>
         </tr></thead>
         <tbody>
         @foreach (var e in Model.Executions)
@@ -114,7 +117,7 @@
             <tr>
                 <td class="num">@e.Id</td>
                 <td class="num">@e.TestId</td>
-                <td class="code">@e.ExecutedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td class="code"><time class="local-time" datetime="@e.ExecutedAt.ToString("yyyy-MM-ddTHH:mm:ssZ")">@e.ExecutedAt.ToString("yyyy-MM-dd HH:mm:ss")</time></td>
                 <td class="outcome-@e.Outcome">@e.Outcome</td>
                 <td class="num">@e.StepCount</td>
                 <td class="num">@(e.StepBytes?.ToString("N0") ?? "—")</td>
@@ -123,6 +126,26 @@
         }
         </tbody>
     </table>
+
+    <script>
+        (function () {
+            var pad = function (n) { return String(n).padStart(2, '0'); };
+            var nodes = document.querySelectorAll('time.local-time[datetime]');
+            var converted = 0;
+            nodes.forEach(function (t) {
+                var d = new Date(t.getAttribute('datetime'));
+                if (isNaN(d.getTime())) return;
+                t.textContent = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+                    + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+                converted++;
+            });
+            if (converted > 0) {
+                document.querySelectorAll('th[data-tz-label]').forEach(function (th) {
+                    th.textContent = th.textContent.replace('(UTC)', '(local)');
+                });
+            }
+        })();
+    </script>
 </section>
 
 <section id="tab-toggles" class="tab-panel">
