@@ -8,18 +8,18 @@
 #     2. docker compose build <service>
 #     3. docker compose up -d <service>
 #
-# Defaults to the agentforge-web service since that's what changes most
-# often; pass -Service to target a different one (or 'all' to rebuild
-# every service in the compose file).
+# Defaults to the security-analyzer-web service since that's what
+# changes most often; pass -Service to target a different one (or
+# 'all' to rebuild every service in the compose file).
 #
 # Usage:
 #   .\rebuild-docker-image.ps1
-#   .\rebuild-docker-image.ps1 -Service agentforge-web
+#   .\rebuild-docker-image.ps1 -Service security-analyzer-web
 #   .\rebuild-docker-image.ps1 -Service all
 
 [CmdletBinding()]
 param(
-    [string]$Service = 'agentforge-web'
+    [string]$Service = 'security-analyzer-web'
 )
 
 # Don't set $ErrorActionPreference='Stop' -- docker writes informational
