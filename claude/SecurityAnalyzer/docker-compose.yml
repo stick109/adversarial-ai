@@ -1,8 +1,3 @@
-# Top-level project name -- used as a prefix on container, network, and
-# volume names.  Renamed from the implicit `agentforge` (derived from
-# the folder name) to `security-analyzer` so the local stack matches
-# the project's user-facing identity.  The Railway deployment still
-# uses the older `agentforge` naming and is unaffected.
 name: security-analyzer
 
 services:
@@ -60,11 +55,6 @@ services:
       - "5081:8080"
 
 volumes:
-  # The physical volume is the one originally created under the old
-  # `agentforge` project (Docker prefixes volume names with the project
-  # name).  We bind to it via `external:` so the compose-project rename
-  # does NOT trigger creation of a fresh, empty volume -- which would
-  # silently wipe the SecurityAnalyzer SQL Server data on first `up`.
   db-data:
     external: true
-    name: agentforge_agentforge-db
+    name: security-analyzer_security-analyzer-db
