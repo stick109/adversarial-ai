@@ -31,5 +31,25 @@ services:
     ports:
       - "5080:8080"
 
+  # Runs the Harness on a timer (configured via dbo.Parameters key
+  # 'executor-loop-minutes') and exposes POST /runs to trigger an
+  # immediate run.  Web is listed in depends_on so the schema (which
+  # creates dbo.Parameters and dbo.ExecutorRuns) is applied first;
+  # the Executor additionally polls until dbo.Parameters is readable
+  # before starting its loop.
+  agentforge-executor:
+    build:
+      context: .
+      dockerfile: src/AgentForge.Executor/Dockerfile
+    container_name: agentforge-executor
+    depends_on:
+      - agentforge-db
+      - agentforge-web
+    environment:
+      AGENTFORGE_DB: "Server=agentforge-db,1433;Database=AgentForge;User Id=sa;Password=AgentForge!2026;TrustServerCertificate=true"
+      COPILOT_BASE_URL: "https://openemr-web-production.up.railway.app"
+    ports:
+      - "5081:8080"
+
 volumes:
   agentforge-db:

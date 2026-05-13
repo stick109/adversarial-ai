@@ -221,3 +221,45 @@ INSERT INTO dbo.Users (Username, PasswordHash) VALUES (
     N'100000.BSm9QfyUTSAWk68i4GHfbw==.gke7xwYJIpgMuRS8uSVqeyX+Bjx12EA4KTtzdpVpW5E='
 );
 GO
+
+------------------------------------------------------------------
+-- 5. Parameters (key/value runtime config tunable without redeploy).
+--    Read by AgentForge.Executor on every loop iteration so an
+--    operator can change executor-loop-minutes at the DB level and
+--    the next iteration picks it up.
+------------------------------------------------------------------
+IF OBJECT_ID(N'dbo.Parameters', N'U') IS NULL
+CREATE TABLE dbo.Parameters (
+    [Key]      NVARCHAR(128) NOT NULL PRIMARY KEY,
+    [Value]    NVARCHAR(MAX) NOT NULL,
+    UpdatedAt  DATETIME2     NOT NULL DEFAULT SYSUTCDATETIME()
+);
+GO
+
+-- Insert-only seed: an operator may have tuned the loop interval at
+-- runtime and we must not overwrite that on every schema re-apply.
+IF NOT EXISTS (SELECT 1 FROM dbo.Parameters WHERE [Key] = N'executor-loop-minutes')
+INSERT INTO dbo.Parameters ([Key], [Value]) VALUES (N'executor-loop-minutes', N'5');
+GO
+
+------------------------------------------------------------------
+-- 6. ExecutorRuns -- one row per Executor-triggered harness invocation.
+--    The Executor inserts the row when a run starts (Status='running'),
+--    kicks off the harness in the background, and updates the row when
+--    PenetrationHarness.RunOnce returns -- mirrors RedTeamRuns.
+--
+--    TriggeredBy distinguishes the timer loop ('schedule') from the
+--    HTTP POST /runs trigger ('http').
+------------------------------------------------------------------
+IF OBJECT_ID(N'dbo.ExecutorRuns', N'U') IS NULL
+CREATE TABLE dbo.ExecutorRuns (
+    Id                          INT IDENTITY(1,1) PRIMARY KEY,
+    StartedAt                   DATETIME2     NOT NULL DEFAULT SYSUTCDATETIME(),
+    FinishedAt                  DATETIME2     NULL,
+    Status                      NVARCHAR(16)  NOT NULL DEFAULT N'running',  -- running, ok, failed
+    TriggeredBy                 NVARCHAR(16)  NOT NULL,                     -- schedule, http
+    ExitCode                    INT           NULL,
+    PenetrationTestExecutionId  INT           NULL REFERENCES dbo.PenetrationTestExecutions(Id),
+    ErrorMessageId              INT           NULL REFERENCES dbo.ErrorMessages(Id)
+);
+GO
