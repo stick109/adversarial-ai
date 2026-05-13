@@ -13,7 +13,7 @@
     <!-- The schema script lives at the solution root (db\001_schema.sql)
          and is applied at startup by SchemaApplier.  Link it into the
          Web output so the published app carries it under db\. -->
-    <Content Include="..\..\db\001_schema.sql" Link="db\001_schema.sql">
+    <Content Include="..\db\001_schema.sql" Link="db\001_schema.sql">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

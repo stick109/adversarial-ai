@@ -7,15 +7,15 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 # Copy csproj files first to cache the restore layer.
-COPY src/AgentForge.Executor/AgentForge.Executor.csproj src/AgentForge.Executor/
-COPY src/AgentForge.Harness/AgentForge.Harness.csproj   src/AgentForge.Harness/
+COPY AgentForge.Executor/AgentForge.Executor.csproj AgentForge.Executor/
+COPY AgentForge.Harness/AgentForge.Harness.csproj   AgentForge.Harness/
 
-RUN dotnet restore src/AgentForge.Executor/AgentForge.Executor.csproj
+RUN dotnet restore AgentForge.Executor/AgentForge.Executor.csproj
 
-COPY src/AgentForge.Executor/ src/AgentForge.Executor/
-COPY src/AgentForge.Harness/  src/AgentForge.Harness/
+COPY AgentForge.Executor/ AgentForge.Executor/
+COPY AgentForge.Harness/  AgentForge.Harness/
 
-RUN dotnet publish src/AgentForge.Executor/AgentForge.Executor.csproj \
+RUN dotnet publish AgentForge.Executor/AgentForge.Executor.csproj \
         -c Release \
         -o /app/publish \
         --no-restore

@@ -1,7 +1,7 @@
 # Invoke AgentForge.Harness once from the command line.
 #
 # Sets the env vars the harness reads (AGENTFORGE_DB, COPILOT_BASE_URL)
-# for this process only, then runs `dotnet run --project src\AgentForge.Harness`.
+# for this process only, then runs `dotnet run --project AgentForge.Harness`.
 # The harness picks the oldest unrun penetration test, exercises it
 # against the live Co-Pilot, and writes one row to PenetrationTestExecutions.
 #
@@ -22,7 +22,7 @@ param(
 # $LASTEXITCODE explicitly after the dotnet call instead.
 
 $scriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
-$harnessProj = Join-Path $scriptDir 'src\AgentForge.Harness'
+$harnessProj = Join-Path $scriptDir 'AgentForge.Harness'
 
 if (-not (Test-Path $harnessProj)) {
     Write-Error "Harness project not found: $harnessProj"

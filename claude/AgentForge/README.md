@@ -51,10 +51,10 @@ $env:OPENROUTER_API_KEY  = "sk-or-..."                                       # r
 
 ```powershell
 # invent one new test
-dotnet run --project src\AgentForge.RedTeam
+dotnet run --project AgentForge.RedTeam
 
 # run the oldest unrun test against the live Co-Pilot
-dotnet run --project src\AgentForge.Harness
+dotnet run --project AgentForge.Harness
 ```
 
 Each app does exactly one DB write and exits. A future Orchestrator can
@@ -72,7 +72,7 @@ exposes one button to start a new RedTeam run.
 ### Locally (`dotnet run`)
 
 ```powershell
-dotnet run --project src\AgentForge.Web
+dotnet run --project AgentForge.Web
 # defaults to http://localhost:5024 (see launchSettings.json)
 ```
 
@@ -108,8 +108,8 @@ Live at <https://security-analyzer-web-production.up.railway.app>. The
 Railway project `security-analyzer` has three services:
 
 - `security-analyzer-db` — `mcr.microsoft.com/mssql/server:2022-latest`, persistent volume at `/var/opt/mssql`.
-- `security-analyzer-web` — built from `src/AgentForge.Web/Dockerfile` (selected per-service via the `RAILWAY_DOCKERFILE_PATH` env var); reaches the DB at `security-analyzer-db.railway.internal:1433`.
-- `security-analyzer-executor` — built from `src/AgentForge.Executor/Dockerfile`; same DB hostname; exposes the `POST /runs` trigger publicly (see "Running the Executor" below).
+- `security-analyzer-web` — built from `AgentForge.Web/Dockerfile` (selected per-service via the `RAILWAY_DOCKERFILE_PATH` env var); reaches the DB at `security-analyzer-db.railway.internal:1433`.
+- `security-analyzer-executor` — built from `AgentForge.Executor/Dockerfile`; same DB hostname; exposes the `POST /runs` trigger publicly (see "Running the Executor" below).
 
 Deploys are manual. From this directory:
 
@@ -124,11 +124,11 @@ Env vars on the Web service:
 AGENTFORGE_DB              Server=security-analyzer-db.railway.internal,1433;Database=AgentForge;User Id=sa;Password=...;TrustServerCertificate=true
 COPILOT_BASE_URL           https://openemr-web-production.up.railway.app
 OPENROUTER_API_KEY         sk-or-...
-RAILWAY_DOCKERFILE_PATH    src/AgentForge.Web/Dockerfile
+RAILWAY_DOCKERFILE_PATH    AgentForge.Web/Dockerfile
 ```
 
 The Executor service has the same `AGENTFORGE_DB` and `COPILOT_BASE_URL`,
-plus `RAILWAY_DOCKERFILE_PATH=src/AgentForge.Executor/Dockerfile`. It
+plus `RAILWAY_DOCKERFILE_PATH=AgentForge.Executor/Dockerfile`. It
 does not need `OPENROUTER_API_KEY` (only RedTeam/Web invent tests).
 
 The Web container references the RedTeam project, so clicking
@@ -210,11 +210,10 @@ AgentForge/
 ├── railway.json               # restart policy only; Dockerfile per service via env var
 ├── db/
 │   └── 001_schema.sql         # CREATE IF NOT EXISTS + ALTER guards + MERGE seed
-├── src/
-│   ├── AgentForge.RedTeam/    # console exe; RedTeamAgent.RunOnce
-│   ├── AgentForge.Harness/    # console exe; PenetrationHarness.RunOnce
-│   ├── AgentForge.Web/        # Razor Pages dashboard + Dockerfile
-│   └── AgentForge.Executor/   # Harness scheduler + POST /runs + Dockerfile
+├── AgentForge.RedTeam/        # console exe; RedTeamAgent.RunOnce
+├── AgentForge.Harness/        # console exe; PenetrationHarness.RunOnce
+├── AgentForge.Web/            # Razor Pages dashboard + Dockerfile
+├── AgentForge.Executor/       # Harness scheduler + POST /runs + Dockerfile
 ├── evidence/                  # gitignored, mirrors POC-1
 └── README.md
 ```
