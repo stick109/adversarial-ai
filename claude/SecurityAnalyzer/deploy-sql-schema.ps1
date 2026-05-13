@@ -1,10 +1,11 @@
 # Idempotent schema deployer for SecurityAnalyzer.
 #
 # Brings the security-analyzer-db container up if it isn't already,
-# waits for SQL Server to accept connections, then applies
-# db\001_schema.sql via sqlcmd.  Both operations are safe to re-run --
-# compose is a no-op when the container is already healthy, and the
-# schema script uses IF NOT EXISTS guards plus a MERGE seed.
+# waits for SQL Server to accept connections, then applies every
+# .sql file under db\ in filename order via sqlcmd.  Both operations
+# are safe to re-run -- compose is a no-op when the container is
+# already healthy, and the schema files use IF NOT EXISTS guards
+# plus a MERGE seed.
 #
 # Requirements: Docker Desktop, sqlcmd on PATH.
 
@@ -22,11 +23,17 @@ param(
 # $LASTEXITCODE explicitly after each native call instead.
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$schemaFile = Join-Path $scriptDir 'db\001_schema.sql'
+$schemaDir = Join-Path $scriptDir 'db'
 $composeFile = Join-Path $scriptDir 'docker-compose.yml'
 
-if (-not (Test-Path $schemaFile)) {
-    Write-Error "Schema file not found: $schemaFile"
+if (-not (Test-Path $schemaDir)) {
+    Write-Error "Schema directory not found: $schemaDir"
+    exit 1
+}
+
+$schemaFiles = Get-ChildItem -Path $schemaDir -Filter *.sql -File | Sort-Object Name
+if ($schemaFiles.Count -eq 0) {
+    Write-Error "No .sql files found in schema directory: $schemaDir"
     exit 1
 }
 
@@ -53,11 +60,14 @@ if (-not $ready) {
 }
 Write-Host "    ready" -ForegroundColor Green
 
-Write-Host "==> applying schema: $schemaFile" -ForegroundColor Cyan
-& sqlcmd -S $Server -U sa -P $SaPassword -C -b -i $schemaFile
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "sqlcmd apply failed (exit $LASTEXITCODE)"
-    exit 1
+Write-Host "==> applying $($schemaFiles.Count) schema file(s) from: $schemaDir" -ForegroundColor Cyan
+foreach ($f in $schemaFiles) {
+    Write-Host "    -> $($f.Name)"
+    & sqlcmd -S $Server -U sa -P $SaPassword -C -b -i $f.FullName
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "sqlcmd apply failed for $($f.Name) (exit $LASTEXITCODE)"
+        exit 1
+    }
 }
 
 Write-Host "==> verifying objects" -ForegroundColor Cyan

@@ -12,8 +12,8 @@ COPY SecurityAnalyzer.RedTeam/SecurityAnalyzer.RedTeam.csproj SecurityAnalyzer.R
 
 RUN dotnet restore SecurityAnalyzer.Web/SecurityAnalyzer.Web.csproj
 
-# Now copy the actual source plus the schema file (linked into the
-# Web project so it ends up in the published output as db/001_schema.sql).
+# Now copy the actual source plus the db/ schema folder (linked into
+# the Web project so each .sql ends up in the published output under db/).
 COPY SecurityAnalyzer.Web/         SecurityAnalyzer.Web/
 COPY SecurityAnalyzer.RedTeam/     SecurityAnalyzer.RedTeam/
 COPY db/                     db/

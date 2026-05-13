@@ -6,7 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Cookie auth.  Every page requires a signed-in user except Login and
 // Error -- see the AddRazorPages conventions below.  Seeded credential
-// is admin/pass (see db\001_schema.sql §4).
+// is admin/pass (see db\015-users-seed-admin.sql).
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -33,8 +33,8 @@ var app = builder.Build();
 // step.  SECURITY_ANALYZER_DB must be set.
 var connStr = Environment.GetEnvironmentVariable("SECURITY_ANALYZER_DB")
     ?? throw new InvalidOperationException("SECURITY_ANALYZER_DB env var is not set");
-var schemaPath = Path.Combine(app.Environment.ContentRootPath, "db", "001_schema.sql");
-SchemaApplier.Apply(connStr, schemaPath, app.Logger);
+var schemaDir = Path.Combine(app.Environment.ContentRootPath, "db");
+SchemaApplier.Apply(connStr, schemaDir, app.Logger);
 
 if (!app.Environment.IsDevelopment())
 {

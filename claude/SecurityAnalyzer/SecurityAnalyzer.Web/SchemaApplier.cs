@@ -3,31 +3,43 @@ using Microsoft.Data.SqlClient;
 
 namespace SecurityAnalyzer.Web;
 
-// Apply db/001_schema.sql at app startup so containerised deployments
+// Apply the db/ schema folder at app startup so containerised deployments
 // (Railway, fresh docker compose) don't need an external sqlcmd step.
 //
-// The schema script is idempotent: re-running it is a no-op once the
-// DB, tables, columns, and seed rows already exist.  This class:
+// The schema is a folder of NNN-name.sql files; we apply them in
+// filename order on a single non-pooled connection.  Each file is one
+// SQL batch (no GO separator inside), but for robustness we still
+// split on GO so a multi-batch file would also work.  The whole set
+// is idempotent: re-running is a no-op once the DB, tables, columns,
+// and seed rows already exist.  This class:
 //   1. Waits for the SQL Server to accept connections (DB container
 //      may still be booting when the Web container starts), then -- if
 //      the user DB is set in the connection string -- waits for it to
 //      accept "USE <db>" without error 904.  Without this, when an
-//      existing populated volume is rebound, batch 2 of the schema
-//      ("USE SecurityAnalyzer") races server-startup and fails.
-//   2. Connects to `master` so the very first batch -- CREATE DATABASE
-//      SecurityAnalyzer -- can run before SecurityAnalyzer exists.  The script's
-//      USE SecurityAnalyzer; switches the same connection over for the rest
-//      of the batches.
-//   3. Splits the script on `GO` lines (Microsoft.Data.SqlClient does
-//      not understand the sqlcmd batch separator) and runs each batch
-//      via a single non-pooled connection.
+//      existing populated volume is rebound, the early USE batch races
+//      server-startup and fails.
+//   2. Connects to `master` so the first file -- CREATE DATABASE
+//      SecurityAnalyzer -- can run before SecurityAnalyzer exists.  The
+//      USE SecurityAnalyzer file switches the same connection over for
+//      the rest of the files.
+//   3. Microsoft.Data.SqlClient does not understand the sqlcmd `GO`
+//      separator, so any GO lines inside a file are handled here.
 public static class SchemaApplier
 {
-    public static void Apply(string connectionString, string schemaPath, ILogger? logger = null, int waitSeconds = 90)
+    public static void Apply(string connectionString, string schemaDir, ILogger? logger = null, int waitSeconds = 90)
     {
-        if (!File.Exists(schemaPath))
+        if (!Directory.Exists(schemaDir))
         {
-            throw new FileNotFoundException($"Schema file not found: {schemaPath}", schemaPath);
+            throw new DirectoryNotFoundException($"Schema directory not found: {schemaDir}");
+        }
+
+        var sqlFiles = Directory.GetFiles(schemaDir, "*.sql")
+            .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (sqlFiles.Count == 0)
+        {
+            throw new InvalidOperationException($"No .sql files found in schema directory: {schemaDir}");
         }
 
         // Connect to master initially so CREATE DATABASE has somewhere to live.
@@ -42,11 +54,11 @@ public static class SchemaApplier
         WaitForServer(masterConnStr, logger, waitSeconds);
 
         // If the user DB already exists on a populated volume, SQL Server may
-        // still be in the startup phase that gates USE statements -- schema
-        // batch 2 (USE SecurityAnalyzer) then fails with error 904 "Database cannot
+        // still be in the startup phase that gates USE statements -- the early
+        // USE SecurityAnalyzer file then fails with error 904 "Database cannot
         // be autostarted during server shutdown or startup".  Probe USE on a
         // throwaway connection until it works (or 911/4060 tells us the DB
-        // does not exist yet, in which case batch 1 will create it).
+        // does not exist yet, in which case the create-db file will create it).
         var userDb = new SqlConnectionStringBuilder(connectionString).InitialCatalog;
         if (!string.IsNullOrWhiteSpace(userDb)
             && !string.Equals(userDb, "master", StringComparison.OrdinalIgnoreCase))
@@ -54,23 +66,34 @@ public static class SchemaApplier
             WaitForUserDatabaseOnline(masterConnStr, userDb, logger, waitSeconds);
         }
 
-        var batches = SplitOnGo(File.ReadAllText(schemaPath)).ToList();
-        logger?.LogInformation("Applying {Count} schema batches from {Path}", batches.Count, schemaPath);
+        logger?.LogInformation("Applying {Count} schema file(s) from {Dir}", sqlFiles.Count, schemaDir);
 
         using var db = new SqlConnection(masterConnStr);
         db.Open();
-        for (var i = 0; i < batches.Count; i++)
+        foreach (var file in sqlFiles)
         {
-            try
+            var name = Path.GetFileName(file);
+            var batches = SplitOnGo(File.ReadAllText(file)).ToList();
+            if (batches.Count == 0)
             {
-                using var cmd = new SqlCommand(batches[i], db) { CommandTimeout = 60 };
-                cmd.ExecuteNonQuery();
+                logger?.LogInformation("Skipping empty schema file {File}", name);
+                continue;
             }
-            catch (Exception ex)
+            for (var i = 0; i < batches.Count; i++)
             {
-                throw new InvalidOperationException(
-                    $"Schema batch {i + 1}/{batches.Count} failed: {ex.Message}", ex);
+                try
+                {
+                    using var cmd = new SqlCommand(batches[i], db) { CommandTimeout = 60 };
+                    cmd.ExecuteNonQuery();
+                }
+                catch (Exception ex)
+                {
+                    var where = batches.Count == 1 ? name : $"{name} batch {i + 1}/{batches.Count}";
+                    throw new InvalidOperationException(
+                        $"Schema file {where} failed: {ex.Message}", ex);
+                }
             }
+            logger?.LogInformation("Applied {File}", name);
         }
         logger?.LogInformation("Schema applied successfully");
     }
