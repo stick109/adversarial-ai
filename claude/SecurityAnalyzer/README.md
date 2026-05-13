@@ -114,9 +114,14 @@ Railway project `security-analyzer` has three services:
 Deploys are manual. From this directory:
 
 ```powershell
-railway up --service security-analyzer-web
-railway up --service security-analyzer-executor
+railway up --service security-analyzer-web      --path-as-root .
+railway up --service security-analyzer-executor --path-as-root .
 ```
+
+`--path-as-root .` is required: without it, the Railway CLI (4.44+) archives
+files relative to the git repo root, so `RAILWAY_DOCKERFILE_PATH` resolves
+against the wrong prefix and the build errors with
+"couldn't locate the dockerfile in code archive".
 
 Env vars on the Web service:
 
