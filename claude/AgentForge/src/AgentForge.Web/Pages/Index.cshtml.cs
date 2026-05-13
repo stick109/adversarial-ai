@@ -62,6 +62,13 @@ public class IndexModel : PageModel
              ORDER BY r.Id DESC").AsList();
     }
 
+    // Antiforgery is intentionally skipped here.  This is a dev tool
+    // with a single-button form (no user-supplied fields), and on
+    // Railway the data protection key ring isn't sticky across deploys
+    // -- which would CSRF-fail otherwise-valid clicks every time the
+    // container restarts.  The button only triggers a Red Team probe
+    // run; the worst-case CSRF impact is a few cents of LLM spend.
+    [IgnoreAntiforgeryToken]
     public IActionResult OnPostStartRedTeam()
     {
         var connStr = Environment.GetEnvironmentVariable("AGENTFORGE_DB")
